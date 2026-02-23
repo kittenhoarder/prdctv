@@ -2,15 +2,15 @@
 
 Meeting preparation and communication feedback in one app.
 
-- **Frame** — 3-minute structured input → 3 AI clarifying questions → shareable 1-page Frame Brief
-- **Mirror** — communicator intent + audience reception → overlay showing top gaps + follow-up message
+- **Mirror** — How your communication actually landed. State intent (3 fields), share a feedback link after your all-hands or conversation, then see the gap between what you meant and what they received. No Frame required; two-part form only.
+- **Frame** — 3-minute structured input → 3 AI clarifying questions → shareable 1-page Frame Brief. Optional **Frame + Mirror** for presentations: brief plus Mirror link to capture how your message landed.
 
 ## Tech stack
 
 - Next.js 15.5.x (App Router, TypeScript)
 - shadcn/ui, Tailwind CSS v4, dark-mode-first
 - Neon Postgres (serverless) + Drizzle ORM
-- OpenRouter (AI provider, abstracted — swappable)
+- OpenRouter (AI provider, abstracted — swappable; free-tier with auto-discovery)
 - Vercel deployment
 
 ## Quick start
@@ -32,8 +32,10 @@ Fill in `.env.local`:
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Neon Postgres connection string |
-| `OPENROUTER_API_KEY` | OpenRouter API key (https://openrouter.ai/keys) |
-| `AI_PROVIDER` | `openrouter` or `stub` (stub returns demo data, no API calls) |
+| `OPENROUTER_API_KEY` | OpenRouter API key (https://openrouter.ai/keys); required when `AI_PROVIDER=openrouter` |
+| `OPENROUTER_SITE_URL` | Site URL for OpenRouter attribution (default: `https://frame-mirror.app`) |
+| `OPENROUTER_SITE_NAME` | App name for OpenRouter attribution (default: `Frame + Mirror`) |
+| `AI_PROVIDER` | `openrouter` or `stub` — stub returns demo data, no API calls |
 | `ENABLE_MIRROR` | `true` / `false` — feature flag for Mirror module |
 | `ENABLE_AI` | `true` / `false` — when false, AI endpoints return demo data |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis URL (optional — disables rate limiting if blank) |
@@ -42,14 +44,26 @@ Fill in `.env.local`:
 
 ### 3. Set up the database
 
-```bash
-# Push schema to Neon (first time)
-DATABASE_URL=your-url npm run db:push
+With `DATABASE_URL` in `.env.local`, push the schema (creates tables; no migrations yet):
 
-# Or generate and apply migrations
-DATABASE_URL=your-url npm run db:generate
-DATABASE_URL=your-url npm run db:migrate
+```bash
+npm run db:push
 ```
+
+If you don’t use `.env.local`, pass the URL explicitly:
+
+```bash
+DATABASE_URL=postgresql://... npm run db:push
+```
+
+Optional: use migrations instead of push (e.g. for production history):
+
+```bash
+npm run db:generate   # writes SQL to ./drizzle
+npm run db:migrate   # applies pending migrations
+```
+
+Migration `0001_mirror_frame_token_nullable.sql` makes `mirror_sessions.frame_token` nullable so Mirror can be used standalone (no Frame). Existing rows keep their `frame_token`; new Mirror-only sessions use `null`. If you set up the DB with `db:push` (so `db:migrate` was not used), apply this change with: `npx tsx scripts/apply-mirror-frame-nullable.ts` (loads `DATABASE_URL` from `.env.local`; safe to run multiple times).
 
 ### 4. Run locally
 
@@ -61,9 +75,33 @@ Open http://localhost:3000
 
 ## Testing without a database
 
-Set `AI_PROVIDER=stub` and `ENABLE_AI=false` in `.env.local`. The stub adapter returns realistic demo data. **You still need a real database** — the stub only replaces AI calls, not DB queries.
+Set `AI_PROVIDER=stub` and `ENABLE_AI=false` in `.env.local`. The stub adapter returns realistic demo data. **You still need a real database** for the full app — the stub only replaces AI calls, not DB queries.
 
-For rapid local iteration without Neon, you can run a local Postgres instance and use `drizzle-kit push` to apply the schema.
+For rapid local iteration without Neon, run a local Postgres instance and use `drizzle-kit push` to apply the schema.
+
+**UAT OpenRouter only (no DB):** Run the smoke script. Requires `OPENROUTER_API_KEY` and `AI_PROVIDER=openrouter` in `.env.local`. Loads `.env.local` and calls all three AI methods (questions, brief, overlay).
+
+```bash
+npx tsx scripts/smoke-openrouter.ts
+```
+
+Pipe to a file and tail for live progress: `npx tsx scripts/smoke-openrouter.ts 2>&1 | tee /tmp/smoke.log`.
+
+## AI / OpenRouter module
+
+The app uses **free-tier OpenRouter** with automatic model discovery and fallback. All AI flows go through the `AIProvider` interface ([`src/lib/ai/types.ts`](src/lib/ai/types.ts)); routes call `getAIProvider()` and never touch OpenRouter directly.
+
+**When `AI_PROVIDER=openrouter`:**
+
+- **Model discovery** — [`src/lib/ai/openrouter/model-discovery.ts`](src/lib/ai/openrouter/model-discovery.ts) fetches `GET https://openrouter.ai/api/v1/models`, caches 5 min, filters to free-tier (`:free` or zero pricing, ≤13B params).
+- **Selection** — Models are scored (context length, instruct type, quality/speed heuristics). A health tracker records success/failure and rate limits per model; unhealthy or rate-limited models are excluded. Up to 3 models are sent per request in a `models: [...]` array; OpenRouter tries them in order.
+- **Rate limiting** — Internal token-bucket (18 req/min, 500ms min interval) in [`src/lib/ai/openrouter/rate-limiter.ts`](src/lib/ai/openrouter/rate-limiter.ts). Complements Upstash per-IP limiting at the API layer.
+- **Caching** — In-memory LRU cache (5 min TTL, 100 entries) for identical requests ([`src/lib/ai/openrouter/response-cache.ts`](src/lib/ai/openrouter/response-cache.ts)).
+- **System prompt as user message** — Free-tier providers that reject `system` role receive instructions as the first `user` message; prompts still wrap user content in `<user_input>` for injection boundaries.
+
+**Raw fallback:** If the model returns plain text or malformed JSON, the adapter does not fail. It returns `{ _raw: true, text }` and the UI renders that text in a single block (`whitespace-pre-wrap`). When the response is valid structured JSON, the existing sectioned UI (questions list, brief cards, overlay tabs) is used. See [`src/lib/ai/types.ts`](src/lib/ai/types.ts) (`RawFallback`, `isRawFallback`) and the adapter’s `fetchJson` / Zod handling in [`src/lib/ai/openrouter-adapter.ts`](src/lib/ai/openrouter-adapter.ts).
+
+**To add a new AI task:** Extend the `AIProvider` interface and implement it in both the OpenRouter adapter and the stub; add the route and UI that call `getAIProvider()`.
 
 ## Project structure
 
@@ -72,20 +110,23 @@ src/
   app/
     api/
       frame/           POST /api/frame, GET/questions/answers/brief
-      mirror/          POST /api/mirror, GET/respond/overlay
+      mirror/          POST /api/mirror (frameToken optional), GET/respond/overlay
       cron/cleanup     Daily TTL cleanup
     frame/[token]/     questions, brief, view pages
-    mirror/[mtoken]/   respond, overlay pages
+    mirror/            create (Mirror-only), [mtoken]/share, respond, overlay
   components/
     ui/                shadcn components
-    brief-display.tsx  Shared brief renderer
+    brief-display.tsx  Shared brief renderer (structured or raw)
   lib/
-    ai/                Provider interface + OpenRouter adapter + stub
+    ai/                AIProvider interface, OpenRouter adapter, stub
+    ai/openrouter/     Model discovery, scorer, health, selector, rate-limiter, cache
     db/                Drizzle schema + connection
     env.ts             Zod-validated env config
     logger.ts          Structured JSON logging
     sanitize.ts        Input sanitization
     tokens.ts          nanoid token generation + TTL
+scripts/
+  smoke-openrouter.ts  UAT OpenRouter (no DB); loads .env.local
 ```
 
 ## Deployment (Vercel)
@@ -105,6 +146,7 @@ src/
 ## Rollback
 
 - Vercel instant rollback via the Deployments dashboard
+- **AI:** Set `AI_PROVIDER=stub` or `ENABLE_AI=false` to stop OpenRouter calls and return demo data
 - Schema changes are additive-only — no destructive migrations
 - Truncating tables has no lasting consequence (ephemeral data, 7-day TTL)
 
@@ -112,11 +154,12 @@ src/
 
 Before each deploy, verify:
 
-1. `/` → "Small Meeting" → complete Frame flow → brief renders
-2. Copy share link → open incognito → read-only brief renders
-3. `/` → "Presentation" → complete Frame + intent fields
-4. Open audience link → submit response
-5. Submit 3+ responses → generate overlay → divergences display
-6. Access expired token → shows expired message
-7. AI generation shows skeleton → renders result
-8. Tab through all forms → all fields reachable, Enter submits
+1. **Mirror-only:** `/` → "Mirror" → "See how it landed" → fill 3 intent fields → share page → copy audience link → open in incognito → submit response → open overlay → generate overlay → divergences display
+2. **Frame (small):** `/` → "Small Meeting" → "Start framing" → complete Frame flow → brief renders
+3. Copy share link → open incognito → read-only brief renders
+4. **Frame + Mirror:** `/` → "Presentation" → "Start framing" → complete Frame + intent → brief page shows Mirror links → open audience link → submit response → overlay shows divergences
+5. Access expired token → shows expired message
+6. AI generation shows skeleton → renders result (or raw text if model didn't return JSON)
+7. Tab through all forms → all fields reachable, Enter submits
+
+Optional: run `npx tsx scripts/smoke-openrouter.ts` to confirm all three AI methods succeed or correctly return raw fallback when the model doesn’t return valid JSON.

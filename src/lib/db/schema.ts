@@ -1,4 +1,7 @@
 import { pgTable, text, jsonb, timestamp, index } from "drizzle-orm/pg-core";
+import type { FrameBrief, MirrorOverlay } from "@/lib/ai/types";
+
+export type { FrameBrief, MirrorOverlay };
 
 // ── Frame ─────────────────────────────────────────────────────────────────────
 
@@ -9,15 +12,7 @@ export type QuestionEntry = {
   q: string;
   editedQ?: string;
   answer?: string;
-};
-
-export type FrameBrief = {
-  realGoal: string;
-  constraint: string;
-  mustAgree: string;
-  badOutcome: string;
-  agenda: string;
-  openingReadout: string;
+  _raw?: true;
 };
 
 export const frames = pgTable(
@@ -42,23 +37,13 @@ export const frames = pgTable(
 
 // ── Mirror ────────────────────────────────────────────────────────────────────
 
-export type MirrorOverlay = {
-  divergences: Array<{
-    intended: string;
-    received: string;
-    gapSummary: string;
-  }>;
-  themes: Array<{ theme: string; count: number }>;
-  followUp: string;
-};
-
 export const mirrorSessions = pgTable(
   "mirror_sessions",
   {
     mtoken: text("mtoken").primaryKey(),
-    frameToken: text("frame_token")
-      .notNull()
-      .references(() => frames.token, { onDelete: "cascade" }),
+    frameToken: text("frame_token").references(() => frames.token, {
+      onDelete: "cascade",
+    }),
     intent: text("intent").notNull(),
     keyMessage: text("key_message").notNull(),
     desiredAction: text("desired_action").notNull(),
