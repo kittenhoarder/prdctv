@@ -1,36 +1,122 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Frame + Mirror
 
-## Getting Started
+Meeting preparation and communication feedback in one app.
 
-First, run the development server:
+- **Frame** — 3-minute structured input → 3 AI clarifying questions → shareable 1-page Frame Brief
+- **Mirror** — communicator intent + audience reception → overlay showing top gaps + follow-up message
+
+## Tech stack
+
+- Next.js 15.5.x (App Router, TypeScript)
+- shadcn/ui, Tailwind CSS v4, dark-mode-first
+- Neon Postgres (serverless) + Drizzle ORM
+- OpenRouter (AI provider, abstracted — swappable)
+- Vercel deployment
+
+## Quick start
+
+### 1. Install dependencies
+
+```bash
+npm install
+```
+
+### 2. Configure environment
+
+```bash
+cp .env.example .env.local
+```
+
+Fill in `.env.local`:
+
+| Variable | Description |
+|---|---|
+| `DATABASE_URL` | Neon Postgres connection string |
+| `OPENROUTER_API_KEY` | OpenRouter API key (https://openrouter.ai/keys) |
+| `AI_PROVIDER` | `openrouter` or `stub` (stub returns demo data, no API calls) |
+| `ENABLE_MIRROR` | `true` / `false` — feature flag for Mirror module |
+| `ENABLE_AI` | `true` / `false` — when false, AI endpoints return demo data |
+| `UPSTASH_REDIS_REST_URL` | Upstash Redis URL (optional — disables rate limiting if blank) |
+| `UPSTASH_REDIS_REST_TOKEN` | Upstash Redis token |
+| `CRON_SECRET` | Secret to protect the cleanup cron endpoint |
+
+### 3. Set up the database
+
+```bash
+# Push schema to Neon (first time)
+DATABASE_URL=your-url npm run db:push
+
+# Or generate and apply migrations
+DATABASE_URL=your-url npm run db:generate
+DATABASE_URL=your-url npm run db:migrate
+```
+
+### 4. Run locally
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Testing without a database
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Set `AI_PROVIDER=stub` and `ENABLE_AI=false` in `.env.local`. The stub adapter returns realistic demo data. **You still need a real database** — the stub only replaces AI calls, not DB queries.
 
-## Learn More
+For rapid local iteration without Neon, you can run a local Postgres instance and use `drizzle-kit push` to apply the schema.
 
-To learn more about Next.js, take a look at the following resources:
+## Project structure
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```
+src/
+  app/
+    api/
+      frame/           POST /api/frame, GET/questions/answers/brief
+      mirror/          POST /api/mirror, GET/respond/overlay
+      cron/cleanup     Daily TTL cleanup
+    frame/[token]/     questions, brief, view pages
+    mirror/[mtoken]/   respond, overlay pages
+  components/
+    ui/                shadcn components
+    brief-display.tsx  Shared brief renderer
+  lib/
+    ai/                Provider interface + OpenRouter adapter + stub
+    db/                Drizzle schema + connection
+    env.ts             Zod-validated env config
+    logger.ts          Structured JSON logging
+    sanitize.ts        Input sanitization
+    tokens.ts          nanoid token generation + TTL
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment (Vercel)
 
-## Deploy on Vercel
+1. Push to GitHub
+2. Import repo in Vercel
+3. Add all env vars in Vercel dashboard
+4. Vercel Cron is configured in `vercel.json` — runs cleanup at 03:00 UTC daily
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Feature flags
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Flag | Effect |
+|---|---|
+| `ENABLE_MIRROR=false` | Disables Mirror routes entirely |
+| `ENABLE_AI=false` | All AI endpoints return hardcoded demo data |
+
+## Rollback
+
+- Vercel instant rollback via the Deployments dashboard
+- Schema changes are additive-only — no destructive migrations
+- Truncating tables has no lasting consequence (ephemeral data, 7-day TTL)
+
+## Smoke tests
+
+Before each deploy, verify:
+
+1. `/` → "Small Meeting" → complete Frame flow → brief renders
+2. Copy share link → open incognito → read-only brief renders
+3. `/` → "Presentation" → complete Frame + intent fields
+4. Open audience link → submit response
+5. Submit 3+ responses → generate overlay → divergences display
+6. Access expired token → shows expired message
+7. AI generation shows skeleton → renders result
+8. Tab through all forms → all fields reachable, Enter submits
