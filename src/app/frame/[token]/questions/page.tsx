@@ -32,6 +32,7 @@ export default function QuestionsPage({
 
   const [frame, setFrame] = useState<FrameData | null>(null);
   const [qas, setQas] = useState<QA[]>([]);
+  const [rawQuestionsText, setRawQuestionsText] = useState<string | null>(null);
   const [generating, setGenerating] = useState(true);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -52,13 +53,24 @@ export default function QuestionsPage({
       }
 
       const data = await res.json();
-      setQas(
-        data.questions.map((q: string) => ({
-          question: q,
-          editedQuestion: q,
-          answer: "",
-        }))
-      );
+      const isRaw =
+        data.questions?.length === 1 &&
+        data.questions[0] &&
+        typeof data.questions[0] === "object" &&
+        data.questions[0]._raw === true;
+      if (isRaw) {
+        setRawQuestionsText(data.questions[0].q ?? "");
+        setQas([]);
+      } else {
+        setRawQuestionsText(null);
+        setQas(
+          data.questions.map((q: string) => ({
+            question: q,
+            editedQuestion: q,
+            answer: "",
+          }))
+        );
+      }
     } catch (err) {
       setGenerateError(
         err instanceof Error ? err.message : "Unable to generate. Please try again."
@@ -80,13 +92,24 @@ export default function QuestionsPage({
 
       // If questions already exist (e.g. page refresh), restore them
       if (data.questions?.length) {
-        setQas(
-          data.questions.map((q: { q: string; editedQ?: string; answer?: string }) => ({
-            question: q.q,
-            editedQuestion: q.editedQ ?? q.q,
-            answer: q.answer ?? "",
-          }))
-        );
+        const isRaw =
+          data.questions.length === 1 &&
+          data.questions[0] &&
+          typeof data.questions[0] === "object" &&
+          (data.questions[0] as { _raw?: boolean })._raw === true;
+        if (isRaw) {
+          setRawQuestionsText((data.questions[0] as { q: string }).q ?? "");
+          setQas([]);
+        } else {
+          setRawQuestionsText(null);
+          setQas(
+            data.questions.map((q: { q: string; editedQ?: string; answer?: string }) => ({
+              question: q.q,
+              editedQuestion: q.editedQ ?? q.q,
+              answer: q.answer ?? "",
+            }))
+          );
+        }
         setGenerating(false);
       } else {
         await generateQuestions();
@@ -141,6 +164,7 @@ export default function QuestionsPage({
   };
 
   const allAnswered = qas.length === 3 && qas.every((qa) => qa.answer.trim());
+  const showRawQuestions = rawQuestionsText !== null;
 
   return (
     <main className="min-h-screen py-12 px-4">
@@ -192,7 +216,25 @@ export default function QuestionsPage({
           </div>
         )}
 
-        {!generating && !generateError && qas.length > 0 && (
+        {!generating && !generateError && showRawQuestions && (
+          <div className="space-y-6">
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {rawQuestionsText}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="lg"
+              className="w-full sm:w-auto"
+              onClick={() => router.push(`/frame/${token}/brief`)}
+            >
+              Continue to Frame Brief
+            </Button>
+          </div>
+        )}
+
+        {!generating && !generateError && !showRawQuestions && qas.length > 0 && (
           <form onSubmit={handleSubmit} className="space-y-8">
             {qas.map((qa, i) => (
               <div key={i} className="space-y-4">

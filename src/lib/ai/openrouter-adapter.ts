@@ -1,62 +1,426 @@
-import type { AIProvider, AIGenerateOptions, AIProviderResult } from "./provider";
+import type {
+  AIProvider,
+  GenerateQuestionsInput,
+  GenerateQuestionsOutput,
+  GenerateBriefInput,
+  FrameBrief,
+  FrameBriefStructured,
+  GenerateOverlayInput,
+  MirrorOverlay,
+  Result,
+  AIFailure,
+} from "./types";
+import {
+  buildQuestionsPrompt,
+  QUESTIONS_SYSTEM_PROMPT,
+  buildBriefPrompt,
+  BRIEF_SYSTEM_PROMPT,
+  buildOverlayPrompt,
+  OVERLAY_SYSTEM_PROMPT,
+} from "./prompts";
+import {
+  generateQuestionsOutputSchema,
+  frameBriefSchema,
+  mirrorOverlaySchema,
+} from "./schemas";
+import type { AdapterConfig, ChatCompletionResponse } from "./openrouter/types";
+import { modelSelector } from "./openrouter/model-selector";
+import { modelHealthTracker } from "./openrouter/model-health";
+import { openRouterRateLimiter } from "./openrouter/rate-limiter";
+import { ResponseCache, cacheKey } from "./openrouter/response-cache";
+import { log } from "@/lib/logger";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-// Use a capable model that supports JSON mode
-const MODEL = "anthropic/claude-3.5-haiku";
+const TIMEOUT_PER_MODEL_MS = 5_000;
+const RETRY_DELAYS_MS = [1_000, 3_000];
+const JITTER_MS = 200;
+const MODEL_COUNT = 3;
+
+function jitter(ms: number): number {
+  const delta = Math.floor(Math.random() * (2 * JITTER_MS + 1)) - JITTER_MS;
+  return Math.max(0, ms + delta);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** Common preamble patterns that may appear before the JSON object. */
+const JSON_PREAMBLE = /^(?:(?:Here'?s? (?:the |your )?(?:JSON|result|response)[.:]?\s*)|(?:Answer:?\s*)|(?:```(?:json)?\s*))/i;
+
+/**
+ * Extracts a JSON object from LLM output that may include markdown fences or preamble text.
+ * Strips optional preamble, then tries direct parse, fenced block, or first balanced {...} block.
+ */
+function extractJson(content: string): unknown {
+  let trimmed = content.trim();
+  trimmed = trimmed.replace(JSON_PREAMBLE, "").trim();
+
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    // Fall through
+  }
+
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenced) {
+    try {
+      return JSON.parse(fenced[1].trim());
+    } catch {
+      // Fall through
+    }
+  }
+
+  const start = trimmed.indexOf("{");
+  if (start === -1) throw new ValidationError("No JSON object in response");
+
+  let depth = 0;
+  for (let i = start; i < trimmed.length; i++) {
+    if (trimmed[i] === "{") depth++;
+    else if (trimmed[i] === "}") depth--;
+    if (depth === 0) {
+      try {
+        return JSON.parse(trimmed.slice(start, i + 1));
+      } catch {
+        throw new ValidationError("Malformed JSON object in response");
+      }
+    }
+  }
+
+  throw new ValidationError("Unterminated JSON object in response");
+}
+
+/** Coerces parsed (or re-extracted) payload into exactly 3 question strings for display. */
+function normalizeQuestionsPayload(parsed: unknown): GenerateQuestionsOutput | null {
+  if (parsed === null || typeof parsed !== "object") return null;
+  const q = (parsed as { questions?: unknown }).questions;
+  if (!Array.isArray(q)) return null;
+  const strings = q.filter((x): x is string => typeof x === "string");
+  if (strings.length === 0) return null;
+  const questions: [string, string, string] = [
+    strings[0] ?? "",
+    strings[1] ?? "",
+    strings[2] ?? "",
+  ];
+  return { questions };
+}
+
+const BRIEF_KEYS: (keyof FrameBriefStructured)[] = [
+  "realGoal",
+  "constraint",
+  "mustAgree",
+  "badOutcome",
+  "agenda",
+  "openingReadout",
+];
+
+/** Coerces parsed (or re-extracted) payload into a structured brief for display. */
+function normalizeBriefPayload(parsed: unknown): FrameBriefStructured | null {
+  if (parsed === null || typeof parsed !== "object") return null;
+  const o = parsed as Record<string, unknown>;
+  const out: Record<string, string> = {};
+  for (const k of BRIEF_KEYS) {
+    const v = o[k];
+    out[k] = typeof v === "string" ? v : "";
+  }
+  const hasContent = BRIEF_KEYS.some((k) => (out[k] ?? "").trim().length > 0);
+  return hasContent ? (out as FrameBriefStructured) : null;
+}
 
 export class OpenRouterAdapter implements AIProvider {
-  constructor(private readonly apiKey: string) {}
+  private readonly apiKey: string;
+  private readonly siteUrl: string;
+  private readonly siteName: string;
+  private readonly cache = new ResponseCache<{ parsed: unknown | null; raw: string }>();
 
-  async generate<T>(options: AIGenerateOptions): Promise<AIProviderResult<T>> {
-    const { messages, temperature, maxTokens } = options;
+  constructor(config: AdapterConfig) {
+    this.apiKey = config.apiKey;
+    this.siteUrl = config.siteUrl;
+    this.siteName = config.siteName;
+  }
 
+  async generateQuestions(
+    input: GenerateQuestionsInput
+  ): Promise<Result<GenerateQuestionsOutput, AIFailure>> {
+    return this.callWithRetry<GenerateQuestionsOutput>("generateQuestions", async () => {
+      let result: { parsed: unknown | null; raw: string };
+      try {
+        result = await this.fetchJson({
+          functionName: "generateQuestions",
+          system: QUESTIONS_SYSTEM_PROMPT,
+          user: buildQuestionsPrompt(input),
+          temperature: 0.7,
+          maxTokens: 500,
+        });
+      } catch (e) {
+        return this.toFailure(e);
+      }
+      if (result.parsed === null) {
+        try {
+          const reextracted = extractJson(result.raw);
+          const normalized = normalizeQuestionsPayload(reextracted);
+          if (normalized) return { ok: true as const, data: normalized };
+        } catch {
+          // Fall through to raw
+        }
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      const parsed = generateQuestionsOutputSchema.safeParse(result.parsed);
+      if (!parsed.success) {
+        const normalized = normalizeQuestionsPayload(result.parsed);
+        if (normalized) return { ok: true as const, data: normalized };
+        log({
+          event: "ai.validation.failure",
+          function: "generateQuestions",
+          description: "Questions response did not match schema",
+          rawSnippet: result.raw.slice(0, 500),
+        });
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      return { ok: true as const, data: parsed.data };
+    });
+  }
+
+  async generateBrief(
+    input: GenerateBriefInput
+  ): Promise<Result<FrameBrief, AIFailure>> {
+    return this.callWithRetry<FrameBrief>("generateBrief", async () => {
+      let result: { parsed: unknown | null; raw: string };
+      try {
+        result = await this.fetchJson({
+          functionName: "generateBrief",
+          system: BRIEF_SYSTEM_PROMPT,
+          user: buildBriefPrompt(input),
+          temperature: 0.4,
+          maxTokens: 1000,
+        });
+      } catch (e) {
+        return this.toFailure(e);
+      }
+      if (result.parsed === null) {
+        try {
+          const reextracted = extractJson(result.raw);
+          const normalized = normalizeBriefPayload(reextracted);
+          if (normalized) return { ok: true as const, data: normalized };
+        } catch {
+          // Fall through to raw
+        }
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      const parsed = frameBriefSchema.safeParse(result.parsed);
+      if (!parsed.success) {
+        const normalized = normalizeBriefPayload(result.parsed);
+        if (normalized) return { ok: true as const, data: normalized };
+        log({
+          event: "ai.validation.failure",
+          function: "generateBrief",
+          description: "Brief response did not match schema",
+          rawSnippet: result.raw.slice(0, 500),
+        });
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      return { ok: true as const, data: parsed.data };
+    });
+  }
+
+  async generateOverlay(
+    input: GenerateOverlayInput
+  ): Promise<Result<MirrorOverlay, AIFailure>> {
+    return this.callWithRetry<MirrorOverlay>("generateOverlay", async () => {
+      let result: { parsed: unknown | null; raw: string };
+      try {
+        result = await this.fetchJson({
+          functionName: "generateOverlay",
+          system: OVERLAY_SYSTEM_PROMPT,
+          user: buildOverlayPrompt(input),
+          temperature: 0.3,
+          maxTokens: 1200,
+        });
+      } catch (e) {
+        return this.toFailure(e);
+      }
+      if (result.parsed === null) {
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      const parsed = mirrorOverlaySchema.safeParse(result.parsed);
+      if (!parsed.success) {
+        log({
+          event: "ai.validation.failure",
+          function: "generateOverlay",
+          description: "Overlay response did not match schema",
+          rawSnippet: result.raw.slice(0, 500),
+        });
+        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
+      }
+      return { ok: true as const, data: parsed.data };
+    });
+  }
+
+  private toFailure(e: unknown): { ok: false; error: AIFailure } {
+    if (e instanceof TimeoutError) {
+      return { ok: false, error: { code: "timeout", message: "Request timed out" } };
+    }
+    if (e instanceof RateLimitError) {
+      return { ok: false, error: { code: "provider", message: "Rate limited" } };
+    }
+    if (e instanceof ProviderError) {
+      return { ok: false, error: { code: "provider", message: "AI service error" } };
+    }
+    if (e instanceof ValidationError) {
+      return { ok: false, error: { code: "validation", message: e.message } };
+    }
+    return { ok: false, error: { code: "provider", message: "Unknown error" } };
+  }
+
+  private async callWithRetry<T>(
+    _functionName: string,
+    fn: () => Promise<Result<T, AIFailure>>
+  ): Promise<Result<T, AIFailure>> {
+    let lastResult: Result<T, AIFailure> | null = null;
+    for (let attempt = 0; attempt <= 2; attempt++) {
+      const result = await fn();
+      if (result.ok) return result;
+      lastResult = result;
+      if (attempt < 2) {
+        const delay = jitter(RETRY_DELAYS_MS[attempt] ?? 3_000);
+        await sleep(delay);
+      }
+    }
+    return lastResult ?? { ok: false, error: { code: "provider", message: "Unknown error" } };
+  }
+
+  private async fetchJson(options: {
+    functionName: string;
+    system: string;
+    user: string;
+    temperature: number;
+    maxTokens: number;
+  }): Promise<{ parsed: unknown | null; raw: string }> {
+    const models = await modelSelector.getAvailableModels(MODEL_COUNT);
+    if (models.length === 0) {
+      throw new ProviderError(503, "No healthy models available");
+    }
+
+    const messages: Array<{ role: "user"; content: string }> = [
+      { role: "user", content: options.system },
+      { role: "user", content: options.user },
+    ];
+
+    // Check cache
+    const key = cacheKey(models, messages, options.temperature, options.maxTokens);
+    const cached = this.cache.get(key);
+    if (cached !== undefined) return cached;
+
+    // Acquire rate-limit token
+    await openRouterRateLimiter.acquire();
+
+    const timeoutMs = TIMEOUT_PER_MODEL_MS * models.length;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const start = Date.now();
 
-    let response: Response;
+    let res: Response;
     try {
-      response = await fetch(OPENROUTER_API_URL, {
+      res = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${this.apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": "https://frame-mirror.app",
-          "X-Title": "Frame + Mirror",
+          "HTTP-Referer": this.siteUrl,
+          "X-Title": this.siteName,
         },
         body: JSON.stringify({
-          model: MODEL,
+          models,
           messages,
-          temperature,
-          max_tokens: maxTokens,
-          response_format: { type: "json_object" },
+          temperature: options.temperature,
+          max_tokens: options.maxTokens,
+          top_p: 0.9,
+          frequency_penalty: 0.1,
+          presence_penalty: 0.1,
         }),
         signal: controller.signal,
       });
-    } finally {
+    } catch (err) {
       clearTimeout(timeout);
+      models.forEach((m) => modelHealthTracker.recordFailure(m));
+      if (err instanceof Error && err.name === "AbortError") {
+        throw new TimeoutError();
+      }
+      throw err;
+    }
+    clearTimeout(timeout);
+
+    if (res.status === 429) {
+      models.forEach((m) => modelHealthTracker.recordRateLimit(m));
+      throw new RateLimitError();
     }
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new Error(`OpenRouter error ${response.status}: ${body}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      models.forEach((m) => modelHealthTracker.recordFailure(m));
+      throw new ProviderError(res.status, body);
     }
 
-    const json = await response.json();
+    const json = (await res.json()) as ChatCompletionResponse;
+    const latencyMs = Date.now() - start;
+    const respondingModel = json.model ?? models[0];
+
     const content: string = json.choices?.[0]?.message?.content ?? "";
-
-    let parsed: T;
-    try {
-      parsed = JSON.parse(content) as T;
-    } catch {
-      throw new Error(`Failed to parse AI response as JSON: ${content}`);
+    if (content.trim() === "") {
+      models.forEach((m) => modelHealthTracker.recordFailure(m));
+      throw new ValidationError("Empty response from model");
     }
 
-    return {
-      data: parsed,
-      usage: {
-        promptTokens: json.usage?.prompt_tokens ?? 0,
-        completionTokens: json.usage?.completion_tokens ?? 0,
-      },
-    };
+    let parsed: unknown | null;
+    try {
+      parsed = extractJson(content);
+    } catch (e) {
+      if (e instanceof ValidationError) {
+        log({
+          event: "ai.validation.failure",
+          function: options.functionName,
+          description: e.message,
+          rawSnippet: content.slice(0, 500),
+        });
+      }
+      parsed = null;
+    }
+
+    modelHealthTracker.recordSuccess(respondingModel, latencyMs);
+
+    const out: { parsed: unknown | null; raw: string } = { parsed, raw: content };
+    this.cache.set(key, out);
+    return out;
+  }
+}
+
+class TimeoutError extends Error {
+  constructor() {
+    super("Request timed out");
+    this.name = "TimeoutError";
+  }
+}
+
+class RateLimitError extends Error {
+  constructor() {
+    super("Rate limited by OpenRouter");
+    this.name = "RateLimitError";
+  }
+}
+
+class ProviderError extends Error {
+  constructor(
+    public readonly status: number,
+    _body: string
+  ) {
+    super(`OpenRouter error ${status}`);
+    this.name = "ProviderError";
+  }
+}
+
+class ValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "ValidationError";
   }
 }

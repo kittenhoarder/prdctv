@@ -1,107 +1,135 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
-import { Users, Presentation } from "lucide-react";
+import { ArrowRight } from "lucide-react";
+import Link from "next/link";
+import { AsciiMirror } from "@/components/ascii-mirror";
+import { AsciiFrame } from "@/components/ascii-frame";
 
-type MeetingType = "small" | "presentation";
-
-const options: Array<{
-  value: MeetingType;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}> = [
-  {
-    value: "small",
-    label: "Small Meeting",
-    description:
-      "A focused conversation with a clear decision or outcome. Creates a Frame Brief to share before the meeting.",
-    icon: <Users className="h-5 w-5" />,
-  },
-  {
-    value: "presentation",
-    label: "Presentation",
-    description:
-      "A communication to a larger or mixed audience. Creates a Frame Brief plus a Mirror link to capture how your message landed.",
-    icon: <Presentation className="h-5 w-5" />,
-  },
-];
+type View = "mirror" | "frame";
 
 export default function Home() {
-  const router = useRouter();
-  const [selected, setSelected] = useState<MeetingType>("small");
+  const [view, setView] = useState<View>("mirror");
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="content-container w-full space-y-10">
-        <div className="space-y-3">
-          <h1 className="text-3xl font-bold tracking-tight">Frame + Mirror</h1>
-          <p className="text-muted-foreground text-base max-w-lg">
-            Frame your meeting before it starts. Mirror how your communication
-            actually landed.
-          </p>
-        </div>
+    <main className="min-h-screen flex items-center justify-center p-8 sm:p-16">
+      <div className="w-full max-w-2xl space-y-12">
 
-        <div className="space-y-4">
-          <p className="text-sm font-medium text-foreground">
-            What are you preparing for?
-          </p>
-          <RadioGroup
-            value={selected}
-            onValueChange={(v) => setSelected(v as MeetingType)}
-            className="gap-3"
+        {/* ── Toggle ─────────────────────────────────────────────── */}
+        <nav className="flex gap-6 font-mono text-xs uppercase tracking-widest">
+          <button
+            onClick={() => setView("mirror")}
+            className={`pb-1 transition-colors ${
+              view === "mirror"
+                ? "text-foreground border-b border-foreground"
+                : "text-muted-foreground hover:text-foreground cursor-pointer"
+            }`}
           >
-            {options.map((opt) => (
-              <Label
-                key={opt.value}
-                htmlFor={opt.value}
-                className="cursor-pointer"
-              >
-                <Card
-                  className={`transition-colors ${
-                    selected === opt.value
-                      ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/40"
-                  }`}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <RadioGroupItem
-                        value={opt.value}
-                        id={opt.value}
-                        className="mt-0.5 shrink-0"
-                      />
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="text-primary">{opt.icon}</span>
-                          <span className="font-medium text-sm">
-                            {opt.label}
-                          </span>
-                        </div>
-                        <p className="text-muted-foreground text-sm leading-relaxed">
-                          {opt.description}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Label>
-            ))}
-          </RadioGroup>
-        </div>
+            Mirror
+          </button>
+          <button
+            onClick={() => setView("frame")}
+            className={`pb-1 transition-colors ${
+              view === "frame"
+                ? "text-foreground border-b border-foreground"
+                : "text-muted-foreground hover:text-foreground cursor-pointer"
+            }`}
+          >
+            Frame
+          </button>
+        </nav>
 
-        <Button
-          size="lg"
-          className="w-full sm:w-auto"
-          onClick={() => router.push(`/frame/create?type=${selected}`)}
-        >
-          Start framing
-        </Button>
+        {/* ── Mirror view ────────────────────────────────────────── */}
+        {view === "mirror" && (
+          <div className="space-y-10">
+            <AsciiMirror />
+
+            <div className="space-y-4">
+              <h1 className="text-7xl sm:text-9xl font-bold tracking-tighter leading-none text-foreground uppercase">
+                Mirror
+              </h1>
+              <p className="text-xl sm:text-2xl text-muted-foreground tracking-tight max-w-xl leading-snug">
+                How your communication actually landed,{" "}
+                <span className="text-foreground">
+                  not how you intended it.
+                </span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <Link
+                href="/mirror/create"
+                className="group inline-flex items-center gap-3 bg-foreground text-background px-8 py-4 text-base font-semibold tracking-tight rounded-none transition-opacity hover:opacity-80 w-full sm:w-auto justify-center sm:justify-start"
+              >
+                See how it landed
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Link>
+
+              <p className="text-xs text-muted-foreground uppercase tracking-widest font-mono">
+                Three fields.&nbsp;&nbsp;Sixty seconds.&nbsp;&nbsp;No account
+                required.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ── Frame view ─────────────────────────────────────────── */}
+        {view === "frame" && (
+          <div className="space-y-10">
+            <AsciiFrame />
+
+            <div className="space-y-4">
+              <h1 className="text-7xl sm:text-9xl font-bold tracking-tighter leading-none text-foreground uppercase">
+                Frame
+              </h1>
+              <p className="text-xl sm:text-2xl text-muted-foreground tracking-tight max-w-xl leading-snug">
+                Know exactly what you want{" "}
+                <span className="text-foreground">
+                  before you walk in.
+                </span>
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link
+                  href="/frame/create?type=small"
+                  className="group block border border-foreground/10 p-5 rounded-none hover:border-foreground transition-colors"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium text-sm text-foreground">
+                      Small Meeting
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Frame Brief before the meeting.
+                    </p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground mt-3 transition-transform group-hover:translate-x-1" />
+                </Link>
+
+                <Link
+                  href="/frame/create?type=presentation"
+                  className="group block border border-foreground/10 p-5 rounded-none hover:border-foreground transition-colors"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium text-sm text-foreground">
+                      Presentation
+                    </p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">
+                      Frame Brief + Mirror audience feedback.
+                    </p>
+                  </div>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground mt-3 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </div>
+
+              <p className="text-xs text-muted-foreground uppercase tracking-widest font-mono">
+                AI-generated brief.&nbsp;&nbsp;Shareable.&nbsp;&nbsp;No account
+                required.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

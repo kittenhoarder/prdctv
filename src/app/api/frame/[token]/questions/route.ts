@@ -1,17 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { getAIProvider } from "@/lib/ai";
+import { getAIProvider, isRawFallback } from "@/lib/ai";
 import { log } from "@/lib/logger";
+import { timingSafeDummyCompare, timingSafeEqualToken } from "@/lib/tokens";
+import { tokenParamSchema } from "@/lib/validation/schemas";
 import type { QuestionEntry } from "@/lib/db/schema";
-
-const SYSTEM_PROMPT = `You are a meeting preparation expert. Given structured context about an upcoming meeting, generate exactly 3 clarifying questions that would most improve the communicator's preparation. Questions should surface hidden assumptions, unspoken constraints, or political dynamics. Do not infer PII or make psychological assessments. Return JSON only matching this schema: {"questions": ["string","string","string"]}`;
 
 export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
   const { token } = await params;
+  const tokenResult = tokenParamSchema.safeParse(token);
+  if (!tokenResult.success) {
+    return NextResponse.json({ message: "Invalid token" }, { status: 400 });
+  }
+  const validToken = tokenResult.data;
   const db = getDb();
   const start = Date.now();
 
@@ -19,77 +24,64 @@ export async function POST(
     .select()
     .from(schema.frames)
     .where(
-      and(eq(schema.frames.token, token), gt(schema.frames.expiresAt, new Date()))
+      and(eq(schema.frames.token, validToken), gt(schema.frames.expiresAt, new Date()))
     )
     .limit(1);
 
   if (!rows.length) {
+    timingSafeDummyCompare(validToken);
     return NextResponse.json({ message: "Not found or expired" }, { status: 404 });
   }
-
+  if (!timingSafeEqualToken(validToken, rows[0].token)) {
+    return NextResponse.json({ message: "Not found or expired" }, { status: 404 });
+  }
   const frame = rows[0];
   const ai = getAIProvider();
 
-  const userPrompt = `Meeting: ${frame.title}. Type: ${frame.type}. Audience: ${frame.audience}. Stakes: ${frame.stakes}. Desired outcome: ${frame.outcome}.${frame.context ? ` Context: ${frame.context}` : ""}`;
+  const result = await ai.generateQuestions({
+    title: frame.title,
+    meetingType: frame.type,
+    audience: frame.audience,
+    stakes: frame.stakes,
+    desiredOutcome: frame.outcome,
+    context: frame.context ?? "",
+  });
 
-  let result: { questions: string[] };
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const res = await ai.generate<{ questions: string[] }>({
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: userPrompt },
-        ],
-        temperature: 0.7,
-        maxTokens: 500,
-        responseSchema: {
-          type: "object",
-          properties: {
-            questions: {
-              type: "array",
-              items: { type: "string" },
-              minItems: 3,
-              maxItems: 3,
-            },
-          },
-          required: ["questions"],
-        },
-      });
-
-      // Validate response shape
-      if (
-        !Array.isArray(res.data.questions) ||
-        res.data.questions.length !== 3 ||
-        !res.data.questions.every((q) => typeof q === "string" && q.trim())
-      ) {
-        throw new Error("Invalid questions shape from AI");
-      }
-
-      result = res.data;
-      break;
-    } catch (err) {
-      if (attempt === 1) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        log({ event: "ai.error", function: "generate-questions", error: errMsg, token });
-        return NextResponse.json(
-          { message: "Unable to generate. Please try again." },
-          { status: 503 }
-        );
-      }
-      // Brief pause before retry
-      await new Promise((r) => setTimeout(r, 1000));
-    }
+  if (!result.ok) {
+    log({
+      event: "ai.call.failure",
+      function: "generateQuestions",
+      errorType: result.error.code,
+      sessionHash: validToken.slice(0, 8),
+    });
+    return NextResponse.json(
+      { message: "Unable to generate. Please try again." },
+      { status: 503 }
+    );
   }
 
-  const questions: QuestionEntry[] = result!.questions.map((q) => ({ q }));
+  let questions: QuestionEntry[];
+  let responseQuestions: string[] | QuestionEntry[];
+
+  if (isRawFallback(result.data)) {
+    questions = [{ q: result.data.text, _raw: true }];
+    responseQuestions = questions;
+  } else {
+    questions = result.data.questions.map((q) => ({ q }));
+    responseQuestions = result.data.questions;
+  }
 
   await db
     .update(schema.frames)
     .set({ questions })
-    .where(eq(schema.frames.token, token));
+    .where(eq(schema.frames.token, validToken));
 
-  log({ event: "frame.questions_generated", token, durationMs: Date.now() - start });
+  log({
+    event: "ai.call.success",
+    function: "generateQuestions",
+    latencyMs: Date.now() - start,
+    sessionHash: validToken.slice(0, 8),
+  });
 
-  return NextResponse.json({ questions: result!.questions });
+  return NextResponse.json({ questions: responseQuestions });
 }

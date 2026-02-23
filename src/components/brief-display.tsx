@@ -22,6 +22,8 @@ import {
   Mic,
 } from "lucide-react";
 import type { FrameBrief } from "@/lib/db/schema";
+import { isRawFallback } from "@/lib/ai";
+import type { FrameBriefStructured } from "@/lib/ai";
 import Link from "next/link";
 
 interface BriefDisplayProps {
@@ -35,7 +37,7 @@ interface BriefDisplayProps {
 }
 
 const sections: Array<{
-  key: keyof FrameBrief;
+  key: keyof FrameBriefStructured;
   label: string;
   icon: React.ReactNode;
   accent?: boolean;
@@ -97,6 +99,8 @@ export function BriefDisplay({
     day: "numeric",
   });
 
+  const isRaw = isRawFallback(brief);
+
   return (
     <main className="min-h-screen py-12 px-4">
       <div className="content-container space-y-6">
@@ -113,34 +117,41 @@ export function BriefDisplay({
           </p>
         </div>
 
-        {/* Brief sections */}
-        <div className="space-y-1">
-          {sections.map((s, i) => (
-            <Card
-              key={s.key}
-              className={s.accent ? "border-destructive/30" : ""}
-            >
-              <CardHeader className="pb-1 pt-4 px-4">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <span
-                    className={s.accent ? "text-destructive" : "text-primary"}
-                  >
-                    {s.icon}
-                  </span>
-                  <span className="text-xs font-medium uppercase tracking-wide">
-                    {s.label}
-                  </span>
-                </div>
-              </CardHeader>
-              <CardContent className="px-4 pb-4">
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                  {brief[s.key]}
-                </p>
-              </CardContent>
-              {i < sections.length - 1 && <Separator />}
-            </Card>
-          ))}
-        </div>
+        {/* Brief content: raw text or sectioned — sleek, minimal cards */}
+        {isRaw ? (
+          <Card className="rounded-lg border border-border py-0 shadow-none">
+            <CardContent className="p-3">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {brief.text}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-0 divide-y divide-border rounded-lg border border-border overflow-hidden bg-card">
+            {sections.map((s) => (
+              <Card
+                key={s.key}
+                className="rounded-none border-0 shadow-none gap-0 py-0"
+              >
+                <CardHeader className="py-2 px-3">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <span className="text-muted-foreground">
+                      {s.icon}
+                    </span>
+                    <span className="text-xs font-medium uppercase tracking-wide">
+                      {s.label}
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="px-3 pb-2 pt-0">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {(brief as FrameBriefStructured)[s.key]}
+                  </p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
 
         {/* Share controls (owner only) */}
         {isOwner && (

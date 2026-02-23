@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { RefreshCw, ArrowRight, MessageSquare } from "lucide-react";
 import type { MirrorOverlay } from "@/lib/db/schema";
+import { isRawFallback } from "@/lib/ai";
 
 interface MirrorData {
   mtoken: string;
@@ -117,7 +118,7 @@ export default function OverlayPage({
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm">
-            Intent vs. how it actually landed
+            Here is how your message actually landed.
           </p>
         </div>
 
@@ -158,7 +159,17 @@ export default function OverlayPage({
           </div>
         )}
 
-        {data?.overlay && (
+        {data?.overlay && isRawFallback(data.overlay) && (
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                {data.overlay.text}
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {data?.overlay && !isRawFallback(data.overlay) && (
           <Tabs defaultValue="divergences" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="divergences">Gaps</TabsTrigger>
@@ -166,7 +177,6 @@ export default function OverlayPage({
               <TabsTrigger value="followup">Follow-up</TabsTrigger>
             </TabsList>
 
-            {/* Divergences tab */}
             <TabsContent value="divergences" className="space-y-4">
               <div className="space-y-1">
                 <h2 className="text-sm font-medium">Top divergences</h2>
@@ -203,7 +213,6 @@ export default function OverlayPage({
               ))}
             </TabsContent>
 
-            {/* Themes tab */}
             <TabsContent value="themes" className="space-y-4">
               <div className="space-y-1">
                 <h2 className="text-sm font-medium">Recurring themes</h2>
@@ -229,7 +238,6 @@ export default function OverlayPage({
               )}
             </TabsContent>
 
-            {/* Follow-up tab */}
             <TabsContent value="followup" className="space-y-4">
               <div className="space-y-1">
                 <h2 className="text-sm font-medium">Suggested follow-up</h2>

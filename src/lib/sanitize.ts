@@ -1,3 +1,26 @@
+/** Trim and strip HTML from a string. Use before Zod validation on all string inputs. */
+export function sanitizeForValidation(s: string): string {
+  return s.replace(/<[^>]*>/g, "").trim();
+}
+
+/** Recursively sanitize all string values in an object (for request bodies). Use before Zod parse. */
+export function sanitizeStrings<T>(obj: T): T {
+  if (typeof obj === "string") {
+    return sanitizeForValidation(obj) as T;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map((item) => sanitizeStrings(item)) as T;
+  }
+  if (obj !== null && typeof obj === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(obj)) {
+      out[k] = sanitizeStrings(v);
+    }
+    return out as T;
+  }
+  return obj;
+}
+
 const INJECTION_PATTERNS = [
   /ignore\s+(previous|all|prior)\s+instructions/i,
   /system\s*prompt/i,
