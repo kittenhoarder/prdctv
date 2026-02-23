@@ -283,16 +283,42 @@ describe("OpenRouterAdapter", () => {
       ],
     });
 
-    it("returns structured brief when response is markdown-wrapped JSON", async () => {
+    it("returns raw text brief for any response", async () => {
       const content =
-        '```json\n{"realGoal":"Secure budget approval","constraint":"CEO aversion","mustAgree":"Acknowledge constraint","badOutcome":"Budget blocked","agenda":"Present budget, link to constraint.","openingReadout":"We\'re here to review the Q3 budget."}\n```';
+        "Real goal: Secure budget approval\n\nOpening readout: We're here to review the Q3 budget.";
       globalThis.fetch = vi.fn().mockResolvedValue(mockChatResponse(content));
 
       const result = await adapter.generateBrief(briefInput());
       expect(result.ok).toBe(true);
-      if (result.ok && !("_raw" in result.data)) {
-        expect(result.data.realGoal).toBe("Secure budget approval");
-        expect(result.data.openingReadout).toContain("Q3 budget");
+      if (result.ok) {
+        expect(result.data).toHaveProperty("_raw", true);
+        expect((result.data as { text: string }).text).toBe(content);
+      }
+    });
+
+    it("strips markdown fences from brief response", async () => {
+      const innerContent =
+        "Real goal: Secure budget approval\n\nOpening readout: We're here to review the Q3 budget.";
+      const content = `\`\`\`\n${innerContent}\n\`\`\``;
+      globalThis.fetch = vi.fn().mockResolvedValue(mockChatResponse(content));
+
+      const result = await adapter.generateBrief(briefInput());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect(result.data).toHaveProperty("_raw", true);
+        expect((result.data as { text: string }).text).toBe(innerContent);
+      }
+    });
+
+    it("strips json-labelled fences from brief response", async () => {
+      const innerContent = "Real goal: Secure budget approval";
+      const content = `\`\`\`json\n${innerContent}\n\`\`\``;
+      globalThis.fetch = vi.fn().mockResolvedValue(mockChatResponse(content));
+
+      const result = await adapter.generateBrief(briefInput());
+      expect(result.ok).toBe(true);
+      if (result.ok) {
+        expect((result.data as { text: string }).text).toBe(innerContent);
       }
     });
   });

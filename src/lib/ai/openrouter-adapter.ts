@@ -4,7 +4,6 @@ import type {
   GenerateQuestionsOutput,
   GenerateBriefInput,
   FrameBrief,
-  FrameBriefStructured,
   GenerateOverlayInput,
   MirrorOverlay,
   Result,
@@ -20,7 +19,6 @@ import {
 } from "./prompts";
 import {
   generateQuestionsOutputSchema,
-  frameBriefSchema,
   mirrorOverlaySchema,
 } from "./schemas";
 import type { AdapterConfig, ChatCompletionResponse } from "./openrouter/types";
@@ -105,26 +103,15 @@ function normalizeQuestionsPayload(parsed: unknown): GenerateQuestionsOutput | n
   return { questions };
 }
 
-const BRIEF_KEYS: (keyof FrameBriefStructured)[] = [
-  "realGoal",
-  "constraint",
-  "mustAgree",
-  "badOutcome",
-  "agenda",
-  "openingReadout",
-];
-
-/** Coerces parsed (or re-extracted) payload into a structured brief for display. */
-function normalizeBriefPayload(parsed: unknown): FrameBriefStructured | null {
-  if (parsed === null || typeof parsed !== "object") return null;
-  const o = parsed as Record<string, unknown>;
-  const out: Record<string, string> = {};
-  for (const k of BRIEF_KEYS) {
-    const v = o[k];
-    out[k] = typeof v === "string" ? v : "";
-  }
-  const hasContent = BRIEF_KEYS.some((k) => (out[k] ?? "").trim().length > 0);
-  return hasContent ? (out as FrameBriefStructured) : null;
+/**
+ * Strips markdown code fences that some models wrap around plain-text responses.
+ * Brief generation is intentionally freeform — no JSON parsing.
+ */
+function stripFences(content: string): string {
+  const trimmed = content.trim();
+  const fenced = trimmed.match(/^```(?:\w+)?\s*([\s\S]*?)\s*```$/);
+  if (fenced) return fenced[1].trim();
+  return trimmed;
 }
 
 export class OpenRouterAdapter implements AIProvider {
@@ -197,29 +184,8 @@ export class OpenRouterAdapter implements AIProvider {
       } catch (e) {
         return this.toFailure(e);
       }
-      if (result.parsed === null) {
-        try {
-          const reextracted = extractJson(result.raw);
-          const normalized = normalizeBriefPayload(reextracted);
-          if (normalized) return { ok: true as const, data: normalized };
-        } catch {
-          // Fall through to raw
-        }
-        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
-      }
-      const parsed = frameBriefSchema.safeParse(result.parsed);
-      if (!parsed.success) {
-        const normalized = normalizeBriefPayload(result.parsed);
-        if (normalized) return { ok: true as const, data: normalized };
-        log({
-          event: "ai.validation.failure",
-          function: "generateBrief",
-          description: "Brief response did not match schema",
-          rawSnippet: result.raw.slice(0, 500),
-        });
-        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
-      }
-      return { ok: true as const, data: parsed.data };
+      // Brief is intentionally freeform — always return stripped plain text.
+      return { ok: true as const, data: { _raw: true as const, text: stripFences(result.raw) } };
     });
   }
 
