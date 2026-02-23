@@ -17,10 +17,7 @@ import {
   buildOverlayPrompt,
   OVERLAY_SYSTEM_PROMPT,
 } from "./prompts";
-import {
-  generateQuestionsOutputSchema,
-  mirrorOverlaySchema,
-} from "./schemas";
+import { generateQuestionsOutputSchema } from "./schemas";
 import type { AdapterConfig, ChatCompletionResponse } from "./openrouter/types";
 import { modelSelector } from "./openrouter/model-selector";
 import { modelHealthTracker } from "./openrouter/model-health";
@@ -29,7 +26,7 @@ import { ResponseCache, cacheKey } from "./openrouter/response-cache";
 import { log } from "@/lib/logger";
 
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-const TIMEOUT_PER_MODEL_MS = 5_000;
+const TIMEOUT_PER_MODEL_MS = 30_000;
 const RETRY_DELAYS_MS = [1_000, 3_000];
 const JITTER_MS = 200;
 const MODEL_COUNT = 3;
@@ -137,7 +134,7 @@ export class OpenRouterAdapter implements AIProvider {
           system: QUESTIONS_SYSTEM_PROMPT,
           user: buildQuestionsPrompt(input),
           temperature: 0.7,
-          maxTokens: 500,
+          maxTokens: 650,
         });
       } catch (e) {
         return this.toFailure(e);
@@ -205,20 +202,8 @@ export class OpenRouterAdapter implements AIProvider {
       } catch (e) {
         return this.toFailure(e);
       }
-      if (result.parsed === null) {
-        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
-      }
-      const parsed = mirrorOverlaySchema.safeParse(result.parsed);
-      if (!parsed.success) {
-        log({
-          event: "ai.validation.failure",
-          function: "generateOverlay",
-          description: "Overlay response did not match schema",
-          rawSnippet: result.raw.slice(0, 500),
-        });
-        return { ok: true as const, data: { _raw: true as const, text: result.raw } };
-      }
-      return { ok: true as const, data: parsed.data };
+      // Overlay is intentionally freeform — always return stripped plain text.
+      return { ok: true as const, data: { _raw: true as const, text: stripFences(result.raw) } };
     });
   }
 
@@ -230,7 +215,16 @@ export class OpenRouterAdapter implements AIProvider {
       return { ok: false, error: { code: "provider", message: "Rate limited" } };
     }
     if (e instanceof ProviderError) {
-      return { ok: false, error: { code: "provider", message: "AI service error" } };
+      let message = "AI service error";
+      try {
+        const parsed = JSON.parse(e.body) as { error?: { message?: string } };
+        if (parsed?.error?.message && (e.status === 403 || e.status === 429)) {
+          message = parsed.error.message;
+        }
+      } catch {
+        if (e.body && e.body.length < 200) message = e.body;
+      }
+      return { ok: false, error: { code: "provider", message } };
     }
     if (e instanceof ValidationError) {
       return { ok: false, error: { code: "validation", message: e.message } };
@@ -255,6 +249,27 @@ export class OpenRouterAdapter implements AIProvider {
     return lastResult ?? { ok: false, error: { code: "provider", message: "Unknown error" } };
   }
 
+  /**
+   * Returns the model list for this request. If OPENROUTER_MODEL_1 is set, uses
+   * OPENROUTER_MODEL_1, OPENROUTER_MODEL_2, OPENROUTER_MODEL_3 (in order, up to 3).
+   * Otherwise uses the app's discovery + selector.
+   */
+  private async getModelsForRequest(): Promise<string[]> {
+    const o1 = process.env.OPENROUTER_MODEL_1;
+    if (o1?.trim()) {
+      const overrides = [
+        process.env.OPENROUTER_MODEL_1,
+        process.env.OPENROUTER_MODEL_2,
+        process.env.OPENROUTER_MODEL_3,
+      ]
+        .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        .map((v) => v.trim())
+        .slice(0, MODEL_COUNT);
+      return overrides;
+    }
+    return modelSelector.getAvailableModels(MODEL_COUNT);
+  }
+
   private async fetchJson(options: {
     functionName: string;
     system: string;
@@ -262,22 +277,48 @@ export class OpenRouterAdapter implements AIProvider {
     temperature: number;
     maxTokens: number;
   }): Promise<{ parsed: unknown | null; raw: string }> {
-    const models = await modelSelector.getAvailableModels(MODEL_COUNT);
-    if (models.length === 0) {
+    const modelList = await this.getModelsForRequest();
+    if (modelList.length === 0) {
       throw new ProviderError(503, "No healthy models available");
     }
 
+    const usingOverrides = !!process.env.OPENROUTER_MODEL_1?.trim();
+    let lastError: ProviderError | RateLimitError | TimeoutError | null = null;
+
+    // When using overrides, try each model in order (first, then second, then third on failure).
+    const toTry = usingOverrides ? modelList.map((m) => [m]) : [modelList];
+
+    for (const models of toTry) {
+      try {
+        return await this.fetchJsonWithModels(options, models);
+      } catch (e) {
+        lastError = e instanceof ProviderError || e instanceof RateLimitError || e instanceof TimeoutError ? e : new ProviderError(0, String(e));
+        if (toTry.length > 1) continue;
+        throw e;
+      }
+    }
+    throw lastError ?? new ProviderError(503, "All models failed");
+  }
+
+  private async fetchJsonWithModels(
+    options: {
+      functionName: string;
+      system: string;
+      user: string;
+      temperature: number;
+      maxTokens: number;
+    },
+    models: string[],
+  ): Promise<{ parsed: unknown | null; raw: string }> {
     const messages: Array<{ role: "user"; content: string }> = [
       { role: "user", content: options.system },
       { role: "user", content: options.user },
     ];
 
-    // Check cache
     const key = cacheKey(models, messages, options.temperature, options.maxTokens);
     const cached = this.cache.get(key);
     if (cached !== undefined) return cached;
 
-    // Acquire rate-limit token
     await openRouterRateLimiter.acquire();
 
     const timeoutMs = TIMEOUT_PER_MODEL_MS * models.length;
@@ -334,7 +375,8 @@ export class OpenRouterAdapter implements AIProvider {
     const content: string = json.choices?.[0]?.message?.content ?? "";
     if (content.trim() === "") {
       models.forEach((m) => modelHealthTracker.recordFailure(m));
-      throw new ValidationError("Empty response from model");
+      const errMsg = json.error?.message ?? "Empty response from model";
+      throw new ProviderError(res.status, errMsg);
     }
 
     let parsed: unknown | null;
@@ -377,7 +419,7 @@ class RateLimitError extends Error {
 class ProviderError extends Error {
   constructor(
     public readonly status: number,
-    _body: string
+    public readonly body: string
   ) {
     super(`OpenRouter error ${status}`);
     this.name = "ProviderError";

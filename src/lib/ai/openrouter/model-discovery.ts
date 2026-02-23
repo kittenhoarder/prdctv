@@ -3,6 +3,7 @@ import type { OpenRouterModel, OpenRouterModelsResponse } from "./types";
 const MODELS_URL = "https://openrouter.ai/api/v1/models";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 10_000;
+const MAX_PARAM_BILLIONS = 13;
 
 /**
  * Infers parameter count in billions from the model id.
@@ -19,6 +20,11 @@ function isFreeModel(model: OpenRouterModel): boolean {
     model.id.endsWith(":free") ||
     (model.pricing.prompt === "0" && model.pricing.completion === "0")
   );
+}
+
+function isWithinSizeLimit(model: OpenRouterModel): boolean {
+  const params = inferParamBillions(model.id);
+  return params === null || params <= MAX_PARAM_BILLIONS;
 }
 
 export class ModelDiscoveryService {
@@ -65,7 +71,9 @@ export class ModelDiscoveryService {
       const res = await fetch(MODELS_URL, { signal: controller.signal });
       if (!res.ok) throw new Error(`Models API returned ${res.status}`);
       const body = (await res.json()) as OpenRouterModelsResponse;
-      return body.data.filter((m) => isFreeModel(m));
+      return body.data.filter(
+        (m) => isFreeModel(m) && isWithinSizeLimit(m)
+      );
     } finally {
       clearTimeout(timeout);
     }

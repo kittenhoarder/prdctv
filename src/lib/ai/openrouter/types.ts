@@ -42,9 +42,10 @@ export interface ChatCompletionRequest {
 }
 
 export interface ChatCompletionResponse {
-  id: string;
-  model: string;
-  choices: Array<{ message: { content: string } }>;
+  id?: string;
+  model?: string;
+  choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+  error?: { message?: string; code?: number };
   usage?: {
     prompt_tokens: number;
     completion_tokens: number;
