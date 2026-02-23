@@ -18,16 +18,18 @@ const QUESTIONS_FIXTURE: GenerateQuestionsOutput = {
 };
 
 const BRIEF_FIXTURE: FrameBrief = {
-  realGoal: "Reach a clear decision that everyone will actually act on",
-  constraint:
-    "Limited time and pre-existing opinions that haven't been aired",
-  mustAgree: "What the one concrete next step is and who owns it",
-  badOutcome:
-    "Meeting ends with 'let's take this offline' — no decision, no owner",
-  agenda:
-    "1. State the decision to be made (2 min) 2. Share relevant context (5 min) 3. Surface concerns (5 min) 4. Decide and assign owner (3 min)",
-  openingReadout:
-    "We're here to make one decision today. I'll share the key context in five minutes, then I want to hear concerns before we lock in. By the end of this meeting, we'll have a clear answer and one person who owns it.",
+  _raw: true as const,
+  text: `Real goal: Reach a clear decision that everyone will actually act on
+
+Key constraint: Limited time and pre-existing opinions that haven't been aired
+
+Must agree on: What the one concrete next step is and who owns it
+
+Bad outcome: Meeting ends with 'let's take this offline' — no decision, no owner
+
+Agenda: 1. State the decision to be made (2 min) 2. Share relevant context (5 min) 3. Surface concerns (5 min) 4. Decide and assign owner (3 min)
+
+Opening readout: We're here to make one decision today. I'll share the key context in five minutes, then I want to hear concerns before we lock in. By the end of this meeting, we'll have a clear answer and one person who owns it.`,
 };
 
 const OVERLAY_FIXTURE: MirrorOverlay = {

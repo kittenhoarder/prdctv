@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -10,17 +10,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Copy,
-  Check,
-  ExternalLink,
-  Target,
-  Lock,
-  HandshakeIcon,
-  AlertTriangle,
-  List,
-  Mic,
-} from "lucide-react";
+import { Copy, Check, ExternalLink } from "lucide-react";
 import type { FrameBrief } from "@/lib/db/schema";
 import { isRawFallback } from "@/lib/ai";
 import type { FrameBriefStructured } from "@/lib/ai";
@@ -36,36 +26,17 @@ interface BriefDisplayProps {
   mtoken?: string | null;
 }
 
-const sections: Array<{
-  key: keyof FrameBriefStructured;
-  label: string;
-  icon: React.ReactNode;
-  accent?: boolean;
-}> = [
-  { key: "realGoal", label: "Real goal", icon: <Target className="h-4 w-4" /> },
-  { key: "constraint", label: "Key constraint", icon: <Lock className="h-4 w-4" /> },
-  {
-    key: "mustAgree",
-    label: "Must agree on",
-    icon: <HandshakeIcon className="h-4 w-4" />,
-  },
-  {
-    key: "badOutcome",
-    label: "Bad outcome",
-    icon: <AlertTriangle className="h-4 w-4" />,
-    accent: true,
-  },
-  {
-    key: "agenda",
-    label: "Agenda",
-    icon: <List className="h-4 w-4" />,
-  },
-  {
-    key: "openingReadout",
-    label: "Opening readout",
-    icon: <Mic className="h-4 w-4" />,
-  },
-];
+/** Formats a legacy structured brief into a single readable text block. */
+function structuredToText(brief: FrameBriefStructured): string {
+  const lines: string[] = [];
+  if (brief.realGoal) lines.push(`Real goal: ${brief.realGoal}`);
+  if (brief.constraint) lines.push(`Key constraint: ${brief.constraint}`);
+  if (brief.mustAgree) lines.push(`Must agree on: ${brief.mustAgree}`);
+  if (brief.badOutcome) lines.push(`Bad outcome: ${brief.badOutcome}`);
+  if (brief.agenda) lines.push(`Agenda: ${brief.agenda}`);
+  if (brief.openingReadout) lines.push(`Opening readout: ${brief.openingReadout}`);
+  return lines.join("\n\n");
+}
 
 export function BriefDisplay({
   token,
@@ -99,7 +70,11 @@ export function BriefDisplay({
     day: "numeric",
   });
 
-  const isRaw = isRawFallback(brief);
+  // Resolve brief content to plain text — raw briefs use text directly;
+  // legacy structured briefs are flattened to a single readable block.
+  const briefText = isRawFallback(brief)
+    ? brief.text
+    : structuredToText(brief as FrameBriefStructured);
 
   return (
     <main className="min-h-screen py-12 px-4">
@@ -117,41 +92,14 @@ export function BriefDisplay({
           </p>
         </div>
 
-        {/* Brief content: raw text or sectioned — sleek, minimal cards */}
-        {isRaw ? (
-          <Card className="rounded-lg border border-border py-0 shadow-none">
-            <CardContent className="p-3">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
-                {brief.text}
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-0 divide-y divide-border rounded-lg border border-border overflow-hidden bg-card">
-            {sections.map((s) => (
-              <Card
-                key={s.key}
-                className="rounded-none border-0 shadow-none gap-0 py-0"
-              >
-                <CardHeader className="py-2 px-3">
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <span className="text-muted-foreground">
-                      {s.icon}
-                    </span>
-                    <span className="text-xs font-medium uppercase tracking-wide">
-                      {s.label}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="px-3 pb-2 pt-0">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {(brief as FrameBriefStructured)[s.key]}
-                  </p>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+        {/* Brief content: single card for all briefs */}
+        <Card className="rounded-lg border border-border py-0 shadow-none">
+          <CardContent className="p-3">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+              {briefText}
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Share controls (owner only) */}
         {isOwner && (
