@@ -6,11 +6,33 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Separator } from "@/components/ui/separator";
-import { RefreshCw, ArrowRight, MessageSquare } from "lucide-react";
+import { RefreshCw, MessageSquare } from "lucide-react";
 import type { MirrorOverlay } from "@/lib/db/schema";
 import { isRawFallback } from "@/lib/ai";
+import type { MirrorOverlayStructured } from "@/lib/ai";
+
+/** Formats a legacy structured overlay into a single readable text block. */
+function overlayToText(overlay: MirrorOverlay): string {
+  if (isRawFallback(overlay)) return overlay.text;
+  const o = overlay as MirrorOverlayStructured;
+  const lines: string[] = [];
+  if (o.divergences?.length) {
+    lines.push("Divergences:");
+    o.divergences.forEach((d) => {
+      lines.push(`Intended: ${d.intended}`);
+      lines.push(`Received: ${d.received}`);
+      lines.push(`Summary: ${d.gapSummary}`);
+      lines.push("");
+    });
+  }
+  if (o.themes?.length) {
+    lines.push("Themes:");
+    o.themes.forEach((t) => lines.push(`- ${t.theme} (${t.count})`));
+    lines.push("");
+  }
+  if (o.followUp) lines.push("Follow-up:\n" + o.followUp);
+  return lines.join("\n");
+}
 
 interface MirrorData {
   mtoken: string;
@@ -159,101 +181,14 @@ export default function OverlayPage({
           </div>
         )}
 
-        {data?.overlay && isRawFallback(data.overlay) && (
+        {data?.overlay && (
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                {data.overlay.text}
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                {overlayToText(data.overlay)}
               </p>
             </CardContent>
           </Card>
-        )}
-
-        {data?.overlay && !isRawFallback(data.overlay) && (
-          <Tabs defaultValue="divergences" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="divergences">Gaps</TabsTrigger>
-              <TabsTrigger value="themes">Themes</TabsTrigger>
-              <TabsTrigger value="followup">Follow-up</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="divergences" className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-sm font-medium">Top divergences</h2>
-                <p className="text-muted-foreground text-xs">
-                  Where intent and reception diverged most
-                </p>
-              </div>
-              {data.overlay.divergences.map((d, i) => (
-                <Card key={i} className="border-muted">
-                  <CardContent className="p-4 space-y-3">
-                    <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] gap-3 items-start">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide font-medium">
-                          Intended
-                        </p>
-                        <p className="text-sm leading-relaxed">{d.intended}</p>
-                      </div>
-                      <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block mt-5 shrink-0" />
-                      <div className="space-y-1">
-                        <p className="text-xs text-destructive uppercase tracking-wide font-medium">
-                          Received
-                        </p>
-                        <p className="text-sm leading-relaxed text-muted-foreground">
-                          {d.received}
-                        </p>
-                      </div>
-                    </div>
-                    <Separator />
-                    <p className="text-xs text-muted-foreground italic">
-                      {d.gapSummary}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </TabsContent>
-
-            <TabsContent value="themes" className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-sm font-medium">Recurring themes</h2>
-                <p className="text-muted-foreground text-xs">
-                  Topics that appeared across multiple responses
-                </p>
-              </div>
-              {data.overlay.themes.length === 0 ? (
-                <p className="text-muted-foreground text-sm">
-                  No recurring themes identified.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {data.overlay.themes.map((t, i) => (
-                    <Card key={i}>
-                      <CardContent className="p-3 flex items-center justify-between">
-                        <span className="text-sm">{t.theme}</span>
-                        <Badge variant="secondary">{t.count}</Badge>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              )}
-            </TabsContent>
-
-            <TabsContent value="followup" className="space-y-4">
-              <div className="space-y-1">
-                <h2 className="text-sm font-medium">Suggested follow-up</h2>
-                <p className="text-muted-foreground text-xs">
-                  A draft message that addresses the top gaps. Edit before sending.
-                </p>
-              </div>
-              <Card>
-                <CardContent className="p-4">
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                    {data.overlay.followUp}
-                  </p>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
         )}
 
         {data?.overlay && (

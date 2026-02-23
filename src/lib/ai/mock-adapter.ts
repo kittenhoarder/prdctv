@@ -33,25 +33,12 @@ Opening readout: We're here to make one decision today. I'll share the key conte
 };
 
 const OVERLAY_FIXTURE: MirrorOverlay = {
-  divergences: [
-    {
-      intended: "The change benefits the whole team",
-      received: "The change primarily benefits one group",
-      gapSummary:
-        "Audience didn't see personal benefit — framing was too abstract",
-    },
-    {
-      intended: "This is a well-considered decision",
-      received: "This decision was made without consulting us",
-      gapSummary: "Process wasn't communicated; audience felt excluded",
-    },
-  ],
-  themes: [
-    { theme: "Lack of consultation", count: 3 },
-    { theme: "Timeline concerns", count: 2 },
-  ],
-  followUp:
-    "Thank you for your feedback. I want to address two things directly: first, this decision was made after reviewing input from multiple stakeholders over the past month — I should have made that process more visible. Second, if the timeline is a concern, let's talk through it together this week. I'm sharing a brief summary of the reasoning by EOD today so everyone has the full picture.",
+  _raw: true as const,
+  text: `Divergences: The change was framed as benefiting the whole team, but the audience heard it as primarily benefiting one group. They also didn't see the decision as well-considered; many felt they weren't consulted and the process wasn't communicated.
+
+Themes: Lack of consultation (3), Timeline concerns (2).
+
+Follow-up: Thank you for your feedback. I want to address two things directly: first, this decision was made after reviewing input from multiple stakeholders over the past month — I should have made that process more visible. Second, if the timeline is a concern, let's talk through it together this week. I'm sharing a brief summary of the reasoning by EOD today so everyone has the full picture.`,
 };
 
 /**
