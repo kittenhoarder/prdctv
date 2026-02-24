@@ -85,10 +85,10 @@ export function HomeClient({
                 <h1 className="text-7xl sm:text-9xl font-bold tracking-tighter leading-none text-foreground uppercase">
                   Mirror
                 </h1>
-                <p className="text-xl sm:text-2xl text-muted-foreground tracking-tight max-w-xl leading-snug">
-                  How your communication actually landed,{" "}
-                  <span className="text-foreground">
-                    not how you intended it.
+                <p className="text-xl sm:text-2xl tracking-tight max-w-xl leading-snug">
+                  <span className="text-foreground">your message.</span>{" "}
+                  <span className="text-muted-foreground font-normal">
+                    Close the gap between what you meant and what they heard.
                   </span>
                 </p>
               </>
@@ -98,10 +98,10 @@ export function HomeClient({
                 <h1 className="text-7xl sm:text-9xl font-bold tracking-tighter leading-none text-foreground uppercase">
                   Frame
                 </h1>
-                <p className="text-xl sm:text-2xl text-muted-foreground tracking-tight max-w-xl leading-snug">
-                  Know exactly what you want{" "}
-                  <span className="text-foreground">
-                    before you walk in.
+                <p className="text-xl sm:text-2xl tracking-tight max-w-xl leading-snug">
+                  <span className="text-foreground">your message.</span>{" "}
+                  <span className="text-muted-foreground font-normal">
+                    Improve alignment.
                   </span>
                 </p>
               </>
@@ -139,10 +139,10 @@ export function HomeClient({
               )}
             </div>
 
-            <p className="text-xs text-muted-foreground uppercase tracking-widest font-mono min-h-[1.5rem]">
+            <p className="text-xs text-muted-foreground max-w-xl min-h-[1.5rem]">
               {view === "mirror"
-                ? "Three fields.  Sixty seconds.  No account required."
-                : "AI-generated brief.  Shareable.  No account required."}
+                ? "State your intent in three fields. Share a link with your audience. See exactly where your message landed — and where it didn't."
+                : "Describe your meeting or presentation in plain language. Frame asks three questions and generates a shareable brief — what you're deciding, the real constraint, and what success looks like — before anyone walks in."}
             </p>
           </div>
         </div>
