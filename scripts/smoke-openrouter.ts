@@ -14,14 +14,22 @@ loadEnv({ path: ".env.local" });
 import { OpenRouterAdapter } from "../src/lib/ai/openrouter-adapter";
 import { isRawFallback } from "../src/lib/ai";
 
+const keysFromList = process.env.OPENROUTER_API_KEYS?.split(",")
+  .map((k) => k.trim())
+  .filter((k) => k.length > 0) ?? [];
+const apiKeys =
+  keysFromList.length > 0
+    ? keysFromList
+    : (process.env.OPENROUTER_API_KEY ? [process.env.OPENROUTER_API_KEY] : []);
+
 const config = {
-  apiKey: process.env.OPENROUTER_API_KEY!,
+  apiKeys,
   siteUrl: process.env.OPENROUTER_SITE_URL ?? "https://frame-mirror.app",
   siteName: process.env.OPENROUTER_SITE_NAME ?? "Frame + Mirror",
 };
 
-if (!config.apiKey) {
-  console.error("ERROR: OPENROUTER_API_KEY not set in environment");
+if (config.apiKeys.length === 0) {
+  console.error("ERROR: OPENROUTER_API_KEY or OPENROUTER_API_KEYS not set in environment");
   process.exit(1);
 }
 

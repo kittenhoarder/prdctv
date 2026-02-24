@@ -40,7 +40,7 @@ describe("frameBriefSchema", () => {
   });
 
   it("rejects missing field", () => {
-    const { openingReadout: _o, ...missing } = valid;
+    const { openingReadout: _removed, ...missing } = valid;
     const result = frameBriefSchema.safeParse(missing);
     expect(result.success).toBe(false);
   });

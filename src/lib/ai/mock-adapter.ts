@@ -46,19 +46,19 @@ Follow-up: Thank you for your feedback. I want to address two things directly: f
  */
 export class MockAdapter implements AIProvider {
   async generateQuestions(
-    _: GenerateQuestionsInput
+    _input: GenerateQuestionsInput
   ): Promise<Result<GenerateQuestionsOutput, never>> {
     return { ok: true, data: QUESTIONS_FIXTURE };
   }
 
   async generateBrief(
-    _: GenerateBriefInput
+    _input: GenerateBriefInput
   ): Promise<Result<FrameBrief, never>> {
     return { ok: true, data: BRIEF_FIXTURE };
   }
 
   async generateOverlay(
-    _: GenerateOverlayInput
+    _input: GenerateOverlayInput
   ): Promise<Result<MirrorOverlay, never>> {
     return { ok: true, data: OVERLAY_FIXTURE };
   }
