@@ -184,7 +184,7 @@ export default function OverlayPage({
         {data?.overlay && (
           <Card>
             <CardContent className="p-4">
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
                 {overlayToText(data.overlay)}
               </p>
             </CardContent>

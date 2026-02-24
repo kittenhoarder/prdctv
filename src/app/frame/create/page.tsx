@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { CompletionBar } from "@/components/completion-bar";
 
 type FrameType = "small" | "presentation";
 
@@ -113,12 +114,28 @@ function CreateFrameInner() {
     (type === "small" ||
       (form.intent.trim() && form.keyMessage.trim() && form.desiredAction.trim()));
 
+  const requiredFields = type === "small"
+    ? [form.title, form.audience, form.stakes, form.outcome]
+    : [
+        form.title,
+        form.audience,
+        form.stakes,
+        form.outcome,
+        form.intent,
+        form.keyMessage,
+        form.desiredAction,
+      ];
+  const filled = requiredFields.filter((v) => String(v).trim()).length;
+  const completionPercent = requiredFields.length
+    ? (filled / requiredFields.length) * 100
+    : 0;
+
   return (
-    <main className="min-h-screen py-12 px-4">
-      <div className="content-container space-y-8">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="content-container w-full max-w-[42rem] space-y-8">
         <div className="space-y-1">
           <Link
-            href="/"
+            href="/?view=frame"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -264,14 +281,17 @@ function CreateFrameInner() {
             <p className="text-destructive text-sm">{error}</p>
           )}
 
-          <Button
-            type="submit"
-            size="lg"
-            disabled={!isValid || submitting}
-            className="w-full sm:w-auto"
-          >
-            {submitting ? "Creating…" : "Generate clarifying questions"}
-          </Button>
+          <div className="space-y-3">
+            <CompletionBar percent={completionPercent} />
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!isValid || submitting}
+              className="w-full sm:w-auto"
+            >
+              {submitting ? "Creating…" : "Generate clarifying questions"}
+            </Button>
+          </div>
         </form>
       </div>
     </main>

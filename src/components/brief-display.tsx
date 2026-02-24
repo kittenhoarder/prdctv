@@ -77,8 +77,8 @@ export function BriefDisplay({
     : structuredToText(brief as FrameBriefStructured);
 
   return (
-    <main className="min-h-screen py-12 px-4">
-      <div className="content-container space-y-6">
+    <main className="min-h-screen flex items-center justify-center py-12 px-4">
+      <div className="content-container w-full space-y-6">
         {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-2 flex-wrap">
@@ -95,7 +95,7 @@ export function BriefDisplay({
         {/* Brief content: single card for all briefs */}
         <Card className="rounded-lg border border-border py-0 shadow-none">
           <CardContent className="p-3">
-            <p className="text-sm leading-relaxed whitespace-pre-wrap text-muted-foreground">
+            <p className="text-sm leading-relaxed whitespace-pre-wrap text-foreground/90">
               {briefText}
             </p>
           </CardContent>
