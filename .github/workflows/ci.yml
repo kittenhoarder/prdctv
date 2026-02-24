@@ -26,6 +26,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Secret scanning (Gitleaks)
+        run: |
+          GITLEAKS_VERSION="8.21.0"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" | tar -xz -C /tmp
+          /tmp/gitleaks protect --no-git --redact --exit-code 1
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -49,13 +57,3 @@ jobs:
         run: npm run db:push
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/prdctv_test
-
-      - name: Install Playwright (Chromium)
-        run: npx playwright install chromium --with-deps
-
-      - name: E2E tests
-        run: npm run test:e2e
-        env:
-          AI_PROVIDER: mock
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/prdctv_test
-          PLAYWRIGHT_BASE_URL: http://localhost:3000

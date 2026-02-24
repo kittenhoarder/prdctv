@@ -5,11 +5,16 @@ type View = "mirror" | "frame";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; error?: string }>;
 }) {
   const params = await searchParams;
   const initialView: View =
     params.view === "frame" || params.view === "mirror" ? params.view : "mirror";
 
-  return <HomeClient initialView={initialView} />;
+  return (
+    <HomeClient
+      initialView={initialView}
+      initialError={params.error === "session" ? "session" : undefined}
+    />
+  );
 }

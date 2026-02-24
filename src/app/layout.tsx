@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -20,8 +21,15 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${geistSans.variable} font-sans antialiased`}>
-        <TooltipProvider>{children}</TooltipProvider>
+      <body className={`${geistSans.variable} font-sans antialiased flex min-h-screen flex-col`}>
+        <TooltipProvider>
+          <div className="flex-1">{children}</div>
+          <footer className="py-3 text-center text-xs text-muted-foreground">
+            <Link href="/feedback" className="hover:text-foreground transition-colors">
+              Send feedback
+            </Link>
+          </footer>
+        </TooltipProvider>
       </body>
     </html>
   );

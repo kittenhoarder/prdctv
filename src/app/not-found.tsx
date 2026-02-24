@@ -9,9 +9,14 @@ export default function NotFound() {
         <p className="text-muted-foreground text-sm">
           This link may have expired or never existed.
         </p>
-        <Button asChild variant="outline" size="sm">
-          <Link href="/">Start fresh</Link>
-        </Button>
+        <div className="flex flex-wrap gap-2 justify-center">
+          <Button asChild variant="outline" size="sm">
+            <Link href="/">Start fresh</Link>
+          </Button>
+          <Button asChild variant="ghost" size="sm">
+            <Link href="/feedback">Send feedback</Link>
+          </Button>
+        </div>
       </div>
     </main>
   );

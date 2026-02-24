@@ -1,5 +1,7 @@
 # Homepage background images
 
+Background images live only in `public/assets/` (served at `/assets/`). Do not use a root-level `assets/` folder.
+
 Place two images here for the homepage view switcher:
 
 - **mirror.webp** – background when "Mirror" is selected

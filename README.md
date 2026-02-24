@@ -13,6 +13,8 @@ Meeting preparation and communication feedback in one app.
 - OpenRouter (AI provider, abstracted — swappable; free-tier with auto-discovery)
 - Vercel deployment
 
+Product taglines and shared UI copy (cold-visitor messaging, metadata descriptions) live in [`src/lib/copy.ts`](src/lib/copy.ts) so in-app and link-preview copy stay consistent.
+
 ## Quick start
 
 ### 1. Install dependencies
@@ -35,7 +37,7 @@ Fill in `.env.local`:
 | `OPENROUTER_API_KEY` | OpenRouter API key (https://openrouter.ai/keys); required when `AI_PROVIDER=openrouter` |
 | `OPENROUTER_SITE_URL` | Site URL for OpenRouter attribution (default: `https://frame-mirror.app`) |
 | `OPENROUTER_SITE_NAME` | App name for OpenRouter attribution (default: `Frame + Mirror`) |
-| `AI_PROVIDER` | `openrouter` or `stub` — stub returns demo data, no API calls |
+| `AI_PROVIDER` | `openrouter` or `mock` — mock returns demo data, no API calls |
 | `ENABLE_MIRROR` | `true` / `false` — feature flag for Mirror module |
 | `ENABLE_AI` | `true` / `false` — when false, AI endpoints return demo data |
 | `UPSTASH_REDIS_REST_URL` | Upstash Redis URL (optional — disables rate limiting if blank) |
@@ -75,7 +77,7 @@ Open http://localhost:3000
 
 ## Testing without a database
 
-Set `AI_PROVIDER=stub` and `ENABLE_AI=false` in `.env.local`. The stub adapter returns realistic demo data. **You still need a real database** for the full app — the stub only replaces AI calls, not DB queries.
+Set `AI_PROVIDER=mock` and `ENABLE_AI=false` in `.env.local`. The mock adapter returns realistic demo data. **You still need a real database** for the full app — the mock only replaces AI calls, not DB queries.
 
 For rapid local iteration without Neon, run a local Postgres instance and use `drizzle-kit push` to apply the schema.
 
@@ -101,7 +103,7 @@ The app uses **free-tier OpenRouter** with automatic model discovery and fallbac
 
 **Raw fallback:** If the model returns plain text or malformed JSON, the adapter does not fail. It returns `{ _raw: true, text }` and the UI renders that text in a single block (`whitespace-pre-wrap`). When the response is valid structured JSON, the existing sectioned UI (questions list, brief cards, overlay tabs) is used. See [`src/lib/ai/types.ts`](src/lib/ai/types.ts) (`RawFallback`, `isRawFallback`) and the adapter’s `fetchJson` / Zod handling in [`src/lib/ai/openrouter-adapter.ts`](src/lib/ai/openrouter-adapter.ts).
 
-**To add a new AI task:** Extend the `AIProvider` interface and implement it in both the OpenRouter adapter and the stub; add the route and UI that call `getAIProvider()`.
+**To add a new AI task:** Extend the `AIProvider` interface and implement it in both the OpenRouter adapter and the mock adapter; add the route and UI that call `getAIProvider()`.
 
 ## Project structure
 
@@ -111,14 +113,16 @@ src/
     api/
       frame/           POST /api/frame, GET/questions/answers/brief
       mirror/          POST /api/mirror (frameToken optional), GET/respond/overlay
+      feedback/        POST /api/feedback (product feedback)
       cron/cleanup     Daily TTL cleanup
     frame/[token]/     questions, brief, view pages
     mirror/            create (Mirror-only), [mtoken]/share, respond, overlay
+    feedback/         Send feedback page (footer link)
   components/
     ui/                shadcn components
     brief-display.tsx  Shared brief renderer (structured or raw)
   lib/
-    ai/                AIProvider interface, OpenRouter adapter, stub
+    ai/                AIProvider interface, OpenRouter adapter, mock
     ai/openrouter/     Model discovery, scorer, health, selector, rate-limiter, cache
     db/                Drizzle schema + connection
     env.ts             Zod-validated env config
@@ -127,7 +131,20 @@ src/
     tokens.ts          nanoid token generation + TTL
 scripts/
   smoke-openrouter.ts  UAT OpenRouter (no DB); loads .env.local
+  export-feedback.ts   Export product feedback from DB to JSON
 ```
+
+## Product feedback
+
+Users can submit product feedback via the "Send feedback" link (footer or `/feedback`). Submissions are stored in the `feedback` table. Export to JSON:
+
+```bash
+npx tsx scripts/export-feedback.ts
+# or
+npm run feedback:export
+```
+
+Pipe to a file: `npm run feedback:export > feedback-export.json`. No admin UI yet; use the script to extract.
 
 ## Deployment (Vercel)
 
@@ -146,7 +163,7 @@ scripts/
 ## Rollback
 
 - Vercel instant rollback via the Deployments dashboard
-- **AI:** Set `AI_PROVIDER=stub` or `ENABLE_AI=false` to stop OpenRouter calls and return demo data
+- **AI:** Set `AI_PROVIDER=mock` or `ENABLE_AI=false` to stop OpenRouter calls and return demo data
 - Schema changes are additive-only — no destructive migrations
 - Truncating tables has no lasting consequence (ephemeral data, 7-day TTL)
 
@@ -161,5 +178,7 @@ Before each deploy, verify:
 5. Access expired token → shows expired message
 6. AI generation shows skeleton → renders result (or raw text if model didn't return JSON)
 7. Tab through all forms → all fields reachable, Enter submits
+
+E2E tests are not yet in CI. When added, run them locally with `npm run dev` in one terminal and Playwright (or the project's E2E runner) in another.
 
 Optional: run `npx tsx scripts/smoke-openrouter.ts` to confirm all three AI methods succeed or correctly return raw fallback when the model doesn’t return valid JSON.

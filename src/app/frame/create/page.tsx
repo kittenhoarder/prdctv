@@ -132,7 +132,8 @@ function CreateFrameInner() {
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="content-container w-full max-w-[42rem] space-y-8">
+      <div className="content-container w-full max-w-[42rem]">
+        <div className="bg-background/25 backdrop-blur-md p-6 sm:p-8 space-y-8">
         <div className="space-y-1">
           <Link
             href="/?view=frame"
@@ -293,6 +294,7 @@ function CreateFrameInner() {
             </Button>
           </div>
         </form>
+        </div>
       </div>
     </main>
   );

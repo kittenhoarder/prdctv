@@ -9,7 +9,13 @@ type View = "mirror" | "frame";
 const BG_MIRROR = "/assets/mirror.webp";
 const BG_FRAME = "/assets/frame.webp";
 
-export function HomeClient({ initialView }: { initialView: View }) {
+export function HomeClient({
+  initialView,
+  initialError,
+}: {
+  initialView: View;
+  initialError?: "session";
+}) {
   const [view, setView] = useState<View>(initialView);
 
   return (
@@ -43,7 +49,12 @@ export function HomeClient({ initialView }: { initialView: View }) {
         <div className="absolute inset-0 bg-black/25" aria-hidden />
       </div>
 
-      <main className="relative z-10 min-h-screen flex items-center justify-center p-8 sm:p-16">
+      <main className="relative z-10 min-h-screen flex flex-col items-center justify-center p-8 sm:p-16">
+        {initialError === "session" && (
+          <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-sm text-amber-200">
+            That link wasn&apos;t found or has expired.
+          </p>
+        )}
         <div className="w-full max-w-2xl space-y-12">
           <nav className="flex gap-6 font-mono text-xs uppercase tracking-widest">
             <button

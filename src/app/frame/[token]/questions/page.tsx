@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
+import { LoadingMessage } from "@/components/loading-message";
+import { LOADING_COPY } from "@/lib/loading-copy";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { CompletionBar } from "@/components/completion-bar";
@@ -171,7 +173,8 @@ export default function QuestionsPage({
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 py-8">
-      <div className="content-container w-full max-w-[42rem] space-y-8">
+      <div className="content-container w-full max-w-[42rem]">
+        <div className="bg-background/25 backdrop-blur-md p-6 sm:p-8 space-y-8">
         <div>
           <Link
             href="/?view=frame"
@@ -192,9 +195,7 @@ export default function QuestionsPage({
 
         {generating && (
           <div className="space-y-6">
-            <p className="text-sm text-muted-foreground">
-              Generating questions…
-            </p>
+            <LoadingMessage {...LOADING_COPY.questions} />
             {[0, 1, 2].map((i) => (
               <div key={i} className="space-y-2">
                 <Skeleton className="h-4 w-3/4" />
@@ -287,6 +288,7 @@ export default function QuestionsPage({
             </div>
           </form>
         )}
+        </div>
       </div>
     </main>
   );

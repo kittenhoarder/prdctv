@@ -75,3 +75,15 @@ export const mirrorResponses = pgTable(
   },
   (t) => [index("idx_responses_mtoken").on(t.mtoken)]
 );
+
+// ── Product feedback (MVP: store in DB, extract via script) ──────────────────
+
+export const feedback = pgTable("feedback", {
+  id: text("id").primaryKey(),
+  message: text("message").notNull(),
+  kind: text("kind"), // e.g. bug | idea | other
+  source: text("source"), // page path or unknown
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});

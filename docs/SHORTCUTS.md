@@ -15,7 +15,7 @@ Ship fast; document what we skipped so it's a conscious choice.
 | No i18n | English-only | Before enterprise |
 | No mobile-specific testing | Layout/UX bugs on small screens | Before 100 users |
 | Mirror cap only per-session (50) | Determined actor can create many sessions | Before 100 users |
-| No secret scanning in CI | Credentials could be committed | Before external users |
+| ~~No secret scanning in CI~~ | ~~Credentials could be committed~~ | **Fixed:** Gitleaks v8.21.0 in CI (`--no-git`, current state only) |
 
 **When to Fix** tiers:
 

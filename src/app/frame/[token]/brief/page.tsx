@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCw } from "lucide-react";
+import { LoadingMessage } from "@/components/loading-message";
+import { LOADING_COPY } from "@/lib/loading-copy";
 import { BriefDisplay } from "@/components/brief-display";
 import type { FrameBrief } from "@/lib/db/schema";
 
@@ -33,8 +35,8 @@ export default function BriefPage({
     const load = async () => {
       const res = await fetch(`/api/frame/${token}`);
       if (!res.ok) {
-        if (res.status === 410) router.replace(`/frame/${token}/expired`);
-        else router.replace("/");
+        if (res.status === 410) router.replace(`/frame/${token}/view`);
+        else router.replace("/?error=session");
         return;
       }
       const data = await res.json();
@@ -120,7 +122,7 @@ export default function BriefPage({
     return (
       <main className="min-h-screen py-12 px-4">
         <div className="content-container space-y-6">
-          <p className="text-sm text-muted-foreground">Generating your Frame Brief…</p>
+          <LoadingMessage {...LOADING_COPY.brief} />
           <div className="space-y-4">
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div key={i} className="space-y-2">
