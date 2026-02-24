@@ -48,6 +48,10 @@ export const mirrorSessions = pgTable(
     keyMessage: text("key_message").notNull(),
     desiredAction: text("desired_action").notNull(),
     overlay: jsonb("overlay").$type<MirrorOverlay>(),
+    overlayCodeHash: text("overlay_code_hash"),
+    overlayCodeExpiresAt: timestamp("overlay_code_expires_at", {
+      withTimezone: true,
+    }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -56,6 +60,7 @@ export const mirrorSessions = pgTable(
   (t) => [
     index("idx_mirror_frame").on(t.frameToken),
     index("idx_mirror_expires").on(t.expiresAt),
+    index("idx_mirror_overlay_code_expires").on(t.overlayCodeExpiresAt),
   ]
 );
 

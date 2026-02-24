@@ -3,11 +3,17 @@ import { getDb, schema } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
 import { getAIProvider } from "@/lib/ai";
 import { log } from "@/lib/logger";
-import { timingSafeDummyCompare, timingSafeEqualToken } from "@/lib/tokens";
+import {
+  hashOverlayCode,
+  normalizeOverlayCode,
+  timingSafeDummyCompare,
+  timingSafeEqualHash,
+  timingSafeEqualToken,
+} from "@/lib/tokens";
 import { tokenParamSchema } from "@/lib/validation/schemas";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ mtoken: string }> }
 ) {
   const { mtoken } = await params;
@@ -39,6 +45,40 @@ export async function POST(
   }
 
   const session = sessions[0];
+  const inputCode =
+    req.nextUrl.searchParams.get("code") ??
+    req.headers.get("x-overlay-code") ??
+    "";
+  const normalizedCode = normalizeOverlayCode(inputCode);
+
+  if (!session.overlayCodeHash || !session.overlayCodeExpiresAt) {
+    return NextResponse.json(
+      { message: "Overlay access code is not configured for this session" },
+      { status: 403 }
+    );
+  }
+
+  if (session.overlayCodeExpiresAt.getTime() <= Date.now()) {
+    return NextResponse.json(
+      { message: "Overlay access code has expired" },
+      { status: 403 }
+    );
+  }
+
+  if (!normalizedCode) {
+    return NextResponse.json(
+      { message: "Overlay access code required" },
+      { status: 401 }
+    );
+  }
+
+  const providedHash = hashOverlayCode(normalizedCode);
+  if (!timingSafeEqualHash(providedHash, session.overlayCodeHash)) {
+    return NextResponse.json(
+      { message: "Invalid overlay access code" },
+      { status: 401 }
+    );
+  }
 
   const responses = await db
     .select()

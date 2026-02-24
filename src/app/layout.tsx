@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Geist } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { JourneyBackground } from "@/components/journey-background";
 import "./globals.css";
+import { FeedbackWidget } from "@/components/feedback-widget";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,12 +29,8 @@ export default function RootLayout({
           <div className="flex-1 relative">
             <JourneyBackground />
             {children}
+            <FeedbackWidget />
           </div>
-          <footer className="py-3 text-center text-xs text-muted-foreground">
-            <Link href="/feedback" className="hover:text-foreground transition-colors">
-              Send feedback
-            </Link>
-          </footer>
         </TooltipProvider>
         <Analytics />
         <SpeedInsights />

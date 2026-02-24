@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -12,16 +13,24 @@ import Link from "next/link";
 import { MIRROR_SHARE_ONE_LINER } from "@/lib/copy";
 
 export function ShareContent({ mtoken }: { mtoken: string }) {
-  const [copied, setCopied] = useState<"audience" | null>(null);
+  const [copied, setCopied] = useState<"audience" | "code" | null>(null);
+  const searchParams = useSearchParams();
+  const overlayCode = searchParams.get("code")?.trim() ?? "";
 
   const audienceUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/mirror/${mtoken}/respond`
       : `/mirror/${mtoken}/respond`;
+  const overlayUrl = overlayCode
+    ? `/mirror/${mtoken}/overlay?code=${encodeURIComponent(overlayCode)}`
+    : `/mirror/${mtoken}/overlay`;
 
-  const copyToClipboard = async (text: string) => {
+  const copyToClipboard = async (
+    text: string,
+    target: "audience" | "code"
+  ) => {
     await navigator.clipboard.writeText(text);
-    setCopied("audience");
+    setCopied(target);
     setTimeout(() => setCopied(null), 2000);
   };
 
@@ -46,7 +55,7 @@ export function ShareContent({ mtoken }: { mtoken: string }) {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => copyToClipboard(audienceUrl)}
+                onClick={() => copyToClipboard(audienceUrl, "audience")}
                 className="gap-2"
               >
                 {copied === "audience" ? (
@@ -62,8 +71,31 @@ export function ShareContent({ mtoken }: { mtoken: string }) {
             </TooltipContent>
           </Tooltip>
 
+          {overlayCode ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => copyToClipboard(overlayCode, "code")}
+                  className="gap-2"
+                >
+                  {copied === "code" ? (
+                    <Check className="h-3.5 w-3.5 text-accent" />
+                  ) : (
+                    <Copy className="h-3.5 w-3.5" />
+                  )}
+                  {copied === "code" ? "Code copied!" : `Copy overlay code: ${overlayCode}`}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Keep this code private. It gates access to the overlay page.
+              </TooltipContent>
+            </Tooltip>
+          ) : null}
+
           <Button variant="ghost" size="sm" asChild className="gap-2">
-            <Link href={`/mirror/${mtoken}/overlay`}>
+            <Link href={overlayUrl}>
               <ExternalLink className="h-3.5 w-3.5" />
               View Mirror overlay
             </Link>
