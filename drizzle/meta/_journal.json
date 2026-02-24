@@ -3,6 +3,7 @@
   "dialect": "postgresql",
   "entries": [
     { "idx": 0, "version": "7", "when": 1771855983928, "tag": "0000_right_warlock", "breakpoints": true },
-    { "idx": 1, "version": "7", "when": 1730000000000, "tag": "0001_mirror_frame_token_nullable", "breakpoints": true }
+    { "idx": 1, "version": "7", "when": 1730000000000, "tag": "0001_mirror_frame_token_nullable", "breakpoints": true },
+    { "idx": 2, "version": "7", "when": 1761945600000, "tag": "0002_mirror_overlay_code_columns", "breakpoints": true }
   ]
 }

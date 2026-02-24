@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { MIRROR_SHARE_META_DESCRIPTION } from "@/lib/copy";
-import { ShareContent } from "./share-content";
 
 export const metadata: Metadata = {
   title: "Share feedback link · Mirror",
@@ -9,9 +9,13 @@ export const metadata: Metadata = {
 
 export default async function MirrorSharePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ mtoken: string }>;
+  searchParams: Promise<{ code?: string }>;
 }) {
   const { mtoken } = await params;
-  return <ShareContent mtoken={mtoken} />;
+  const { code } = await searchParams;
+  const codeSuffix = code ? `?code=${encodeURIComponent(code)}` : "";
+  redirect(`/mirror/${mtoken}/overlay${codeSuffix}`);
 }

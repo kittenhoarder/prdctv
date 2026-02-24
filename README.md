@@ -67,6 +67,8 @@ npm run db:migrate   # applies pending migrations
 
 Migration `0001_mirror_frame_token_nullable.sql` makes `mirror_sessions.frame_token` nullable so Mirror can be used standalone (no Frame). Existing rows keep their `frame_token`; new Mirror-only sessions use `null`. If you set up the DB with `db:push` (so `db:migrate` was not used), apply this change with: `npx tsx scripts/apply-mirror-frame-nullable.ts` (loads `DATABASE_URL` from `.env.local`; safe to run multiple times).
 
+Migration `0002_mirror_overlay_code_columns.sql` adds `mirror_sessions.overlay_code_hash` and `mirror_sessions.overlay_code_expires_at` (plus index `idx_mirror_overlay_code_expires`) for Mirror overlay access codes. If you set up the DB with `db:push`, apply it with: `npx tsx scripts/apply-mirror-overlay-code-columns.ts`.
+
 ### 4. Run locally
 
 ```bash

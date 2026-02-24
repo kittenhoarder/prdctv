@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { JourneyInfoButton } from "@/components/journey-info-button";
 
 /** Mirror journey: background is rendered by JourneyBackground in root layout. */
 export default function MirrorLayout({
@@ -8,12 +8,11 @@ export default function MirrorLayout({
 }) {
   return (
     <div className="relative z-10">
-      <Link
-        href="/?view=mirror"
-        className="fixed top-4 right-4 z-20 text-sm text-muted-foreground hover:text-foreground transition-colors"
-      >
-        What is Mirror?
-      </Link>
+      <JourneyInfoButton
+        label="What is Mirror?"
+        title="What is Mirror"
+        description="Mirror shows how your message was actually received. You share one anonymous response link with your audience, then compare their responses to your intended message and action."
+      />
       {children}
     </div>
   );

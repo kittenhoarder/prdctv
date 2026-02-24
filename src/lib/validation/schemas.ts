@@ -77,6 +77,12 @@ export const mirrorIntentInputSchema = z.object({
   intent: trimmedString(1, 1000),
   keyMessage: trimmedString(1, 1000),
   desiredAction: trimmedString(1, 1000),
+  overlayCode: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[A-Za-z0-9\s_-]+$/)
+    .optional(),
 });
 
 export type MirrorIntentInput = z.infer<typeof mirrorIntentInputSchema>;

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb, schema } from "@/lib/db";
 import { eq, and, gt } from "drizzle-orm";
-import { generateToken, getExpiresAt } from "@/lib/tokens";
+import {
+  generateToken,
+  getExpiresAt,
+  generateOverlayCode,
+  getOverlayCodeExpiresAt,
+  hashOverlayCode,
+  normalizeOverlayCode,
+} from "@/lib/tokens";
 import { parseRequestBody } from "@/lib/validation/parse";
 import { mirrorIntentInputSchema } from "@/lib/validation/schemas";
 import { log } from "@/lib/logger";
@@ -15,9 +22,22 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ message: parsed.message }, { status: 400 });
   }
-  const { frameToken, intent, keyMessage, desiredAction } = parsed.data;
+  const { frameToken, intent, keyMessage, desiredAction, overlayCode } = parsed.data;
 
   const db = getDb();
+
+  // Determine overlay access code (either presenter-provided or generated).
+  let finalOverlayCode: string;
+  if (overlayCode) {
+    const normalized = normalizeOverlayCode(overlayCode);
+    finalOverlayCode =
+      normalized && normalized.length >= 5 ? normalized : generateOverlayCode();
+  } else {
+    finalOverlayCode = generateOverlayCode();
+  }
+
+  const overlayCodeHash = hashOverlayCode(finalOverlayCode);
+  const overlayCodeExpiresAt = getOverlayCodeExpiresAt();
 
   if (frameToken != null) {
     const frames = await db
@@ -46,10 +66,12 @@ export async function POST(req: NextRequest) {
     intent,
     keyMessage,
     desiredAction,
+    overlayCodeHash,
+    overlayCodeExpiresAt,
     expiresAt: getExpiresAt(),
   });
 
   log({ event: "mirror.created", mtoken, frameToken: frameToken ?? undefined });
 
-  return NextResponse.json({ mtoken }, { status: 201 });
+  return NextResponse.json({ mtoken, overlayCode: finalOverlayCode }, { status: 201 });
 }
