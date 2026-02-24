@@ -21,7 +21,7 @@ import { generateQuestionsOutputSchema } from "./schemas";
 import type { AdapterConfig, ChatCompletionResponse } from "./openrouter/types";
 import { modelSelector } from "./openrouter/model-selector";
 import { modelHealthTracker } from "./openrouter/model-health";
-import { openRouterRateLimiter } from "./openrouter/rate-limiter";
+import { KeyPool } from "./openrouter/key-pool";
 import { ResponseCache, cacheKey } from "./openrouter/response-cache";
 import { log } from "@/lib/logger";
 
@@ -112,13 +112,13 @@ function stripFences(content: string): string {
 }
 
 export class OpenRouterAdapter implements AIProvider {
-  private readonly apiKey: string;
+  private readonly keyPool: KeyPool;
   private readonly siteUrl: string;
   private readonly siteName: string;
   private readonly cache = new ResponseCache<{ parsed: unknown | null; raw: string }>();
 
   constructor(config: AdapterConfig) {
-    this.apiKey = config.apiKey;
+    this.keyPool = new KeyPool(config.apiKeys);
     this.siteUrl = config.siteUrl;
     this.siteName = config.siteName;
   }
@@ -251,13 +251,15 @@ export class OpenRouterAdapter implements AIProvider {
 
   /**
    * Returns the model list for this request. If OPENROUTER_MODEL_1 is set, uses
-   * OPENROUTER_MODEL_1, OPENROUTER_MODEL_2, OPENROUTER_MODEL_3 (in order, up to 3).
-   * Otherwise uses the app's discovery + selector.
+   * OPENROUTER_MODEL_1, OPENROUTER_MODEL_2, OPENROUTER_MODEL_3 (in order, up to 3),
+   * filtered through the health tracker so persistently-failing overrides are skipped.
+   * If the health filter would leave zero models, falls back to the raw override list so
+   * we always try the user's configured models rather than returning 503.
    */
   private async getModelsForRequest(): Promise<string[]> {
     const o1 = process.env.OPENROUTER_MODEL_1;
     if (o1?.trim()) {
-      const overrides = [
+      const raw = [
         process.env.OPENROUTER_MODEL_1,
         process.env.OPENROUTER_MODEL_2,
         process.env.OPENROUTER_MODEL_3,
@@ -265,7 +267,8 @@ export class OpenRouterAdapter implements AIProvider {
         .filter((v): v is string => typeof v === "string" && v.trim().length > 0)
         .map((v) => v.trim())
         .slice(0, MODEL_COUNT);
-      return overrides;
+      const healthy = raw.filter((v) => modelHealthTracker.isHealthy(v));
+      return healthy.length > 0 ? healthy : raw;
     }
     return modelSelector.getAvailableModels(MODEL_COUNT);
   }
@@ -315,11 +318,14 @@ export class OpenRouterAdapter implements AIProvider {
       { role: "user", content: options.user },
     ];
 
-    const key = cacheKey(models, messages, options.temperature, options.maxTokens);
-    const cached = this.cache.get(key);
+    const cKey = cacheKey(models, messages, options.temperature, options.maxTokens);
+    const cached = this.cache.get(cKey);
     if (cached !== undefined) return cached;
 
-    await openRouterRateLimiter.acquire();
+    const slot = this.keyPool.next();
+    if (!slot) throw new RateLimitError();
+
+    await slot.limiter.acquire();
 
     const timeoutMs = TIMEOUT_PER_MODEL_MS * models.length;
     const controller = new AbortController();
@@ -331,7 +337,7 @@ export class OpenRouterAdapter implements AIProvider {
       res = await fetch(OPENROUTER_API_URL, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${this.apiKey}`,
+          Authorization: `Bearer ${slot.key}`,
           "Content-Type": "application/json",
           "HTTP-Referer": this.siteUrl,
           "X-Title": this.siteName,
@@ -358,13 +364,19 @@ export class OpenRouterAdapter implements AIProvider {
     clearTimeout(timeout);
 
     if (res.status === 429) {
-      models.forEach((m) => modelHealthTracker.recordRateLimit(m));
+      // Back off the key only — 429 is a per-key quota event, not a model health signal.
+      slot.markRateLimited();
       throw new RateLimitError();
     }
 
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      models.forEach((m) => modelHealthTracker.recordFailure(m));
+      if (res.status === 404) {
+        // 404 means no endpoint exists for this model under the current data policy — permanent.
+        models.forEach((m) => modelHealthTracker.markIncompatible(m));
+      } else {
+        models.forEach((m) => modelHealthTracker.recordFailure(m));
+      }
       throw new ProviderError(res.status, body);
     }
 
@@ -397,7 +409,7 @@ export class OpenRouterAdapter implements AIProvider {
     modelHealthTracker.recordSuccess(respondingModel, latencyMs);
 
     const out: { parsed: unknown | null; raw: string } = { parsed, raw: content };
-    this.cache.set(key, out);
+    this.cache.set(cKey, out);
     return out;
   }
 }

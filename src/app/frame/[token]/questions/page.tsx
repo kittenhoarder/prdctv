@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import Link from "next/link";
+import { CompletionBar } from "@/components/completion-bar";
 
 interface QA {
   question: string;
@@ -165,13 +166,15 @@ export default function QuestionsPage({
 
   const allAnswered = qas.length === 3 && qas.every((qa) => qa.answer.trim());
   const showRawQuestions = rawQuestionsText !== null;
+  const answeredCount = qas.filter((qa) => qa.answer.trim()).length;
+  const completionPercent = qas.length ? (answeredCount / qas.length) * 100 : 0;
 
   return (
-    <main className="min-h-screen py-12 px-4">
-      <div className="content-container space-y-8">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="content-container w-full max-w-[42rem] space-y-8">
         <div>
           <Link
-            href="/"
+            href="/?view=frame"
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors mb-4"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
@@ -271,14 +274,17 @@ export default function QuestionsPage({
               <p className="text-destructive text-sm">{submitError}</p>
             )}
 
-            <Button
-              type="submit"
-              size="lg"
-              disabled={!allAnswered || submitting}
-              className="w-full sm:w-auto"
-            >
-              {submitting ? "Generating brief…" : "Generate Frame Brief"}
-            </Button>
+            <div className="space-y-3">
+              <CompletionBar percent={completionPercent} />
+              <Button
+                type="submit"
+                size="lg"
+                disabled={!allAnswered || submitting}
+                className="w-full sm:w-auto"
+              >
+                {submitting ? "Generating brief…" : "Generate Frame Brief"}
+              </Button>
+            </div>
           </form>
         )}
       </div>

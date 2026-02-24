@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
+import { CompletionBar } from "@/components/completion-bar";
 import { Check } from "lucide-react";
 
 interface FormData {
@@ -78,9 +79,16 @@ export default function RespondPage({
   const isValid =
     form.understood.trim() && form.unclear.trim() && form.concerns.trim();
 
+  const filled = [
+    form.understood.trim(),
+    form.unclear.trim(),
+    form.concerns.trim(),
+  ].filter(Boolean).length;
+  const completionPercent = (filled / 3) * 100;
+
   return (
-    <main className="min-h-screen py-12 px-4">
-      <div className="content-container space-y-8">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="content-container w-full max-w-[42rem] space-y-8">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold">How did that land?</h1>
           <p className="text-muted-foreground text-sm">
@@ -139,14 +147,17 @@ export default function RespondPage({
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 
-          <Button
-            type="submit"
-            size="lg"
-            disabled={!isValid || submitting}
-            className="w-full sm:w-auto"
-          >
-            {submitting ? "Submitting…" : "Submit feedback"}
-          </Button>
+          <div className="space-y-3">
+            <CompletionBar percent={completionPercent} />
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!isValid || submitting}
+              className="w-full sm:w-auto"
+            >
+              {submitting ? "Submitting…" : "Submit feedback"}
+            </Button>
+          </div>
         </form>
       </div>
     </main>

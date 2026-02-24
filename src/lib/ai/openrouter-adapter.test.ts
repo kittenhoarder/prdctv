@@ -17,17 +17,28 @@ vi.mock("./openrouter/model-health", () => ({
   },
 }));
 
-vi.mock("./openrouter/rate-limiter", () => ({
-  openRouterRateLimiter: {
-    acquire: vi.fn().mockResolvedValue(undefined),
-  },
-}));
+vi.mock("./openrouter/key-pool", () => {
+  const mockNext = vi.fn().mockReturnValue({
+    key: "test-key",
+    limiter: { acquire: vi.fn().mockResolvedValue(undefined) },
+    markRateLimited: vi.fn(),
+  });
+  function MockKeyPool() {
+    // @ts-expect-error mock constructor
+    this.next = mockNext;
+    // @ts-expect-error mock constructor
+    this.size = 1;
+    // @ts-expect-error mock constructor
+    this.rateLimitedCount = vi.fn().mockReturnValue(0);
+  }
+  return { KeyPool: MockKeyPool, _mockNext: mockNext };
+});
 
 import { modelSelector } from "./openrouter/model-selector";
 import { modelHealthTracker } from "./openrouter/model-health";
 
 const ADAPTER_CONFIG = {
-  apiKey: "test-key",
+  apiKeys: ["test-key"],
   siteUrl: "https://test.app",
   siteName: "Test App",
 };

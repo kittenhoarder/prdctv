@@ -54,7 +54,8 @@ export interface ChatCompletionResponse {
 }
 
 export interface AdapterConfig {
-  apiKey: string;
+  /** One or more OpenRouter API keys. The adapter distributes calls across all keys via round-robin. */
+  apiKeys: string[];
   siteUrl: string;
   siteName: string;
 }

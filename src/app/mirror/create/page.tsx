@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { CompletionBar } from "@/components/completion-bar";
 
 export default function MirrorCreatePage() {
   const router = useRouter();
@@ -56,9 +57,16 @@ export default function MirrorCreatePage() {
   const isValid =
     form.intent.trim() && form.keyMessage.trim() && form.desiredAction.trim();
 
+  const filled = [
+    form.intent.trim(),
+    form.keyMessage.trim(),
+    form.desiredAction.trim(),
+  ].filter(Boolean).length;
+  const completionPercent = (filled / 3) * 100;
+
   return (
-    <main className="min-h-screen py-12 px-4">
-      <div className="content-container space-y-8">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="content-container w-full max-w-[42rem] space-y-8">
         <div className="space-y-1">
           <Link
             href="/"
@@ -115,14 +123,17 @@ export default function MirrorCreatePage() {
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 
-          <Button
-            type="submit"
-            size="lg"
-            disabled={!isValid || submitting}
-            className="w-full sm:w-auto"
-          >
-            {submitting ? "Creating…" : "Create Mirror session"}
-          </Button>
+          <div className="space-y-3">
+            <CompletionBar percent={completionPercent} />
+            <Button
+              type="submit"
+              size="lg"
+              disabled={!isValid || submitting}
+              className="w-full sm:w-auto"
+            >
+              {submitting ? "Creating…" : "Create Mirror session"}
+            </Button>
+          </div>
         </form>
       </div>
     </main>
