@@ -92,7 +92,7 @@ export function OverlayContent({ mtoken }: { mtoken: string }) {
 
   if (!data && !error) {
     return (
-      <main className="min-h-screen py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="content-container space-y-6">
           <Skeleton className="h-8 w-1/2" />
           <Skeleton className="h-4 w-1/3" />
@@ -108,7 +108,7 @@ export function OverlayContent({ mtoken }: { mtoken: string }) {
 
   if (error) {
     return (
-      <main className="min-h-screen py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="content-container space-y-4">
           <p className="text-destructive text-sm">{error}</p>
           {!error.includes("expired") && (
@@ -125,7 +125,7 @@ export function OverlayContent({ mtoken }: { mtoken: string }) {
   const noResponses = (data?.responseCount ?? 0) === 0;
 
   return (
-    <main className="min-h-screen py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="content-container space-y-6">
         {/* Header */}
         <div className="space-y-2">

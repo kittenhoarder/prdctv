@@ -81,7 +81,7 @@ export default function BriefPage({
 
   if (!frame && !error) {
     return (
-      <main className="min-h-screen py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="content-container space-y-6">
           <Skeleton className="h-8 w-1/2" />
           <Skeleton className="h-4 w-1/3" />
@@ -101,7 +101,7 @@ export default function BriefPage({
 
   if (error) {
     return (
-      <main className="min-h-screen py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="content-container space-y-4">
           <p className="text-destructive text-sm">{error}</p>
           <Button
@@ -120,7 +120,7 @@ export default function BriefPage({
 
   if (generating || !frame?.brief) {
     return (
-      <main className="min-h-screen py-12 px-4">
+      <main className="min-h-screen flex items-center justify-center px-4 py-8">
         <div className="content-container space-y-6">
           <LoadingMessage {...LOADING_COPY.brief} />
           <div className="space-y-4">
