@@ -152,6 +152,7 @@ Pipe to a file: `npm run feedback:export > feedback-export.json`. No admin UI ye
 2. Import repo in Vercel
 3. Add all env vars in Vercel dashboard
 4. Vercel Cron is configured in `vercel.json` — runs cleanup at 03:00 UTC daily
+5. In the project’s **Analytics** tab, enable **Web Analytics** and **Speed Insights**; redeploy so the scripts are active. Page views and Core Web Vitals then appear in the dashboard.
 
 ## Feature flags
 
@@ -163,6 +164,7 @@ Pipe to a file: `npm run feedback:export > feedback-export.json`. No admin UI ye
 ## Rollback
 
 - Vercel instant rollback via the Deployments dashboard
+- **Analytics:** Disable in Vercel project **Analytics** tab, or remove `<Analytics />` and `<SpeedInsights />` from `src/app/layout.tsx` and redeploy
 - **AI:** Set `AI_PROVIDER=mock` or `ENABLE_AI=false` to stop OpenRouter calls and return demo data
 - Schema changes are additive-only — no destructive migrations
 - Truncating tables has no lasting consequence (ephemeral data, 7-day TTL)
