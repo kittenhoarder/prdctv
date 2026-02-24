@@ -15,6 +15,7 @@ import type { FrameBrief } from "@/lib/db/schema";
 import { isRawFallback } from "@/lib/ai";
 import type { FrameBriefStructured } from "@/lib/ai";
 import Link from "next/link";
+import { FRAME_VIEWER_CONTEXT } from "@/lib/copy";
 
 interface BriefDisplayProps {
   token: string;
@@ -90,6 +91,21 @@ export function BriefDisplay({
           <p className="text-muted-foreground text-xs">
             Frame Brief · expires {expiryDate}
           </p>
+          {!isOwner && (
+            <>
+              <p className="text-muted-foreground text-sm">
+                {FRAME_VIEWER_CONTEXT}
+              </p>
+              <p className="text-muted-foreground text-xs">
+                <Link
+                  href="/?view=frame"
+                  className="hover:text-foreground transition-colors underline underline-offset-2"
+                >
+                  What&apos;s Frame?
+                </Link>
+              </p>
+            </>
+          )}
         </div>
 
         {/* Brief content: single card for all briefs */}

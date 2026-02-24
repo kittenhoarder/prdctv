@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 /** Frame journey: same full-viewport background as homepage Frame view. */
 export default function FrameLayout({
   children,
@@ -18,7 +20,15 @@ export default function FrameLayout({
       >
         <div className="absolute inset-0 bg-black/25" aria-hidden />
       </div>
-      <div className="relative z-10">{children}</div>
+      <div className="relative z-10">
+        <Link
+          href="/?view=frame"
+          className="fixed top-4 right-4 z-20 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          What is Frame?
+        </Link>
+        {children}
+      </div>
     </>
   );
 }

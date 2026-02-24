@@ -89,3 +89,12 @@ export const mirrorResponseInputSchema = z.object({
 });
 
 export type MirrorResponseInput = z.infer<typeof mirrorResponseInputSchema>;
+
+/** POST /api/feedback body. Product feedback for MVP; no PII beyond user message. */
+export const feedbackBodySchema = z.object({
+  message: trimmedString(1, 2000),
+  kind: z.enum(["bug", "idea", "other"]).optional(),
+  source: z.string().max(500).optional(),
+});
+
+export type FeedbackBody = z.infer<typeof feedbackBodySchema>;

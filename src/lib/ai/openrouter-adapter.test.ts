@@ -203,8 +203,8 @@ describe("OpenRouterAdapter", () => {
     expect(modelHealthTracker.recordFailure).toHaveBeenCalled();
   });
 
-  it("records rate limit on 429 response", async () => {
-    // First call: 429, second and third: also 429 (all retries fail)
+  it("returns provider failure on 429 response", async () => {
+    // 429 is handled per-key (slot.markRateLimited), not as a model health signal.
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
@@ -213,7 +213,7 @@ describe("OpenRouterAdapter", () => {
 
     const result = await adapter.generateQuestions(questionsInput());
     expect(result.ok).toBe(false);
-    expect(modelHealthTracker.recordRateLimit).toHaveBeenCalled();
+    if (!result.ok) expect(result.error.code).toBe("provider");
   });
 
   it("returns provider failure when no models available", async () => {
