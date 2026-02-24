@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Geist } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { JourneyBackground } from "@/components/journey-background";
 import "./globals.css";
@@ -34,6 +36,8 @@ export default function RootLayout({
             </Link>
           </footer>
         </TooltipProvider>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
