@@ -4,7 +4,6 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent } from "@/components/ui/card";
 import { CompletionBar } from "@/components/completion-bar";
 import { Check } from "lucide-react";
 import {
@@ -113,52 +112,46 @@ export function RespondForm({ mtoken }: { mtoken: string }) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <Card className="bg-background/25 backdrop-blur-md border-border/80">
-            <CardContent className="p-4 space-y-1.5">
-              <Label htmlFor="understood">
-                What did you understand from the presentation?
-              </Label>
-              <Textarea
-                id="understood"
-                placeholder="The main point I took away was…"
-                value={form.understood}
-                onChange={set("understood")}
-                rows={3}
-                required
-                maxLength={2000}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-1.5">
+            <Label htmlFor="understood">
+              What did you understand from the presentation?
+            </Label>
+            <Textarea
+              id="understood"
+              placeholder="The main point I took away was…"
+              value={form.understood}
+              onChange={set("understood")}
+              rows={3}
+              required
+              maxLength={2000}
+            />
+          </div>
 
-          <Card className="bg-background/25 backdrop-blur-md border-border/80">
-            <CardContent className="p-4 space-y-1.5">
-              <Label htmlFor="unclear">What was unclear?</Label>
-              <Textarea
-                id="unclear"
-                placeholder="I wasn't sure about…"
-                value={form.unclear}
-                onChange={set("unclear")}
-                rows={3}
-                required
-                maxLength={2000}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-1.5">
+            <Label htmlFor="unclear">What was unclear?</Label>
+            <Textarea
+              id="unclear"
+              placeholder="I wasn't sure about…"
+              value={form.unclear}
+              onChange={set("unclear")}
+              rows={3}
+              required
+              maxLength={2000}
+            />
+          </div>
 
-          <Card className="bg-background/25 backdrop-blur-md border-border/80">
-            <CardContent className="p-4 space-y-1.5">
-              <Label htmlFor="concerns">What concerns you?</Label>
-              <Textarea
-                id="concerns"
-                placeholder="My main concern is…"
-                value={form.concerns}
-                onChange={set("concerns")}
-                rows={3}
-                required
-                maxLength={2000}
-              />
-            </CardContent>
-          </Card>
+          <div className="space-y-1.5">
+            <Label htmlFor="concerns">What concerns you?</Label>
+            <Textarea
+              id="concerns"
+              placeholder="My main concern is…"
+              value={form.concerns}
+              onChange={set("concerns")}
+              rows={3}
+              required
+              maxLength={2000}
+            />
+          </div>
 
           {error && <p className="text-destructive text-sm">{error}</p>}
 

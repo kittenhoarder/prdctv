@@ -26,7 +26,7 @@ export function ShareContent({ mtoken }: { mtoken: string }) {
   };
 
   return (
-    <main className="min-h-screen py-12 px-4">
+    <main className="min-h-screen flex items-center justify-center px-4 py-8">
       <div className="content-container space-y-6">
         <div className="space-y-2">
           <h1 className="text-2xl font-semibold">Your Mirror session is ready</h1>
